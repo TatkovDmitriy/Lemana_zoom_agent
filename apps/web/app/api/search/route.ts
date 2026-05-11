@@ -33,9 +33,9 @@ export const GET = withAuth(async (req, uid) => {
   const snap = await query.get();
   const remaining = tokens.slice(1);
   const minutes = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
+    .map((d) => ({ id: d.id, ...d.data() } as { id: string } & Record<string, unknown>))
     .filter((m) => {
-      const st = (m['searchTokens'] as string[]) ?? [];
+      const st = (m['searchTokens'] as string[] | undefined) ?? [];
       return remaining.every((t) => st.some((s) => s.includes(t)));
     })
     .slice(0, limit);

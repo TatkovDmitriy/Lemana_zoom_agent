@@ -2,7 +2,15 @@ import type { CommandContext, Context } from 'grammy';
 import { InlineKeyboard } from 'grammy';
 import { db } from '../lib/firestore.js';
 import { config } from '../config.js';
-import type { Timestamp } from 'firebase-admin/firestore';
+import type { DocumentData, Timestamp } from 'firebase-admin/firestore';
+
+type MinuteDoc = DocumentData & {
+  id: string;
+  searchTokens: string[];
+  date: Timestamp;
+  title: string;
+  durationMin: number;
+};
 
 export async function searchCommand(ctx: CommandContext<Context>): Promise<void> {
   const query = ctx.match.trim();
@@ -45,9 +53,9 @@ export async function searchCommand(ctx: CommandContext<Context>): Promise<void>
 
   const remaining = tokens.slice(1);
   const minutes = snap.docs
-    .map((d) => ({ id: d.id, ...d.data() }))
+    .map((d) => ({ id: d.id, ...d.data() }) as MinuteDoc)
     .filter((m) => {
-      const st = (m['searchTokens'] as string[]) ?? [];
+      const st = m.searchTokens ?? [];
       return remaining.every((t) => st.some((s) => s.includes(t)));
     })
     .slice(0, 5);
@@ -58,12 +66,12 @@ export async function searchCommand(ctx: CommandContext<Context>): Promise<void>
   }
 
   for (const m of minutes) {
-    const date = (m['date'] as Timestamp).toDate().toLocaleDateString('ru-RU');
+    const date = m.date.toDate().toLocaleDateString('ru-RU');
     const keyboard = new InlineKeyboard().url(
       'Открыть',
       `${config.WEB_APP_BASE_URL}/minutes/${m.id}`,
     );
-    const text = `📋 *${escapeMarkdown(m['title'] as string)}*\n🗓 ${escapeMarkdown(date)} · ${m['durationMin'] as number} мин`;
+    const text = `📋 *${escapeMarkdown(m.title)}*\n🗓 ${escapeMarkdown(date)} · ${m.durationMin} мин`;
     await ctx.reply(text, { parse_mode: 'MarkdownV2', reply_markup: keyboard });
   }
 }
