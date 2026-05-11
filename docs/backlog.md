@@ -28,11 +28,11 @@ _Last updated: 2026-05-11 | PM: Claude_
 | LZA-010 | P0 | web | DONE | API routes: projects, minutes, search |
 | LZA-011 | P0 | web | DONE | Obsidian sync (Octokit) |
 | LZA-012 | P0 | infra | DONE | CI (GitHub Actions) |
-| LZA-013 | P0 | infra | IN PROGRESS | Деплой watcher на Railway |
-| LZA-014 | P0 | infra | TODO | Деплой web на Vercel |
+| LZA-013 | P0 | infra | DONE | Деплой watcher на Railway |
+| LZA-014 | P0 | infra | DONE | Деплой web на Vercel |
 | LZA-015 | P0 | infra | TODO | Деплой bot на Railway |
-| LZA-016 | P0 | infra | TODO | Zoom Webhook URL → Event Subscriptions |
-| LZA-017 | P0 | web | TODO | UI страницы: Projects, Minutes, MeetingDetail |
+| LZA-016 | P0 | infra | BLOCKED | Zoom Webhook URL → Event Subscriptions |
+| LZA-017 | P0 | web | IN PROGRESS | Google Auth — Firebase Console setup + fix |
 
 ---
 
@@ -60,11 +60,11 @@ _Last updated: 2026-05-11 | PM: Claude_
 
 ## DONE
 
-- LZA-001..012: полный pipeline реализован, e2e mock тест прошёл ✅
+- LZA-001..014: полный pipeline реализован, watcher и web задеплоены ✅
 
 ---
 
 ## BLOCKED
 
-- LZA-013: Railway не видит `apps/watcher` как root — нужно настроить Root Directory в Settings
-- LZA-016: нет публичного URL watcher — разблокируется после LZA-013
+- LZA-016: нет валидного webhook URL — разблокируется после LZA-017 (Google Auth fix)
+- LZA-017: нужно включить Google Sign-in в Firebase Console + добавить домен vercel.app

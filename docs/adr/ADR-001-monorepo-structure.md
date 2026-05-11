@@ -6,11 +6,11 @@
 
 ## Контекст
 
-Проект состоит из трёх отдельных сервисов (web, watcher, bot) с общими типами данных. Нужно решить: монорепо или отдельные репозитории.
+Проект состоит из трёх сервисов (web, watcher, bot) с общими типами данных.
 
 ## Решение
 
-Использовать монорепо с pnpm workspaces:
+Монорепо с pnpm workspaces:
 
 ```
 /apps/web         — Next.js (Vercel)
@@ -31,8 +31,8 @@
 ## Последствия
 
 - Vercel: `rootDirectory = apps/web`
-- Railway (watcher): `rootDirectory = apps/watcher`
-- Railway (bot): `rootDirectory = apps/bot`
+- Railway (watcher): Dockerfile path = `apps/watcher/Dockerfile`, build context = корень репо
+- Railway (bot): аналогично watcher
 - TypeScript paths настроены для `@lemana/shared`
 
 ## Альтернативы, которые не выбрали
