@@ -2,20 +2,29 @@
 
 import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bot, FolderKanban, LogOut, Sparkles } from 'lucide-react';
+import { Bot, FolderKanban, Inbox, LogOut, Sparkles } from 'lucide-react';
 import { signOut } from 'firebase/auth';
+import { useEffect, useState } from 'react';
 import { getClientAuth } from '@/lib/firebase-client';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-  { href: '/projects' as const, label: 'Проекты', icon: FolderKanban },
-  { href: '/join' as const, label: 'Подключить бота', icon: Bot },
-];
-
 export function AppSidebar() {
   const pathname = usePathname();
   const auth = useAuth();
+  const [inboxCount, setInboxCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (auth.status !== 'authenticated') return;
+    let cancelled = false;
+    fetch('/api/minutes/inbox-count', {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setInboxCount(d.count ?? 0); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [auth]);
 
   async function handleSignOut() {
     await signOut(getClientAuth());
@@ -26,6 +35,12 @@ export function AppSidebar() {
       ? auth.user.displayName ?? auth.user.email ?? 'Пользователь'
       : '';
   const userInitial = userName.trim().charAt(0).toUpperCase() || '?';
+
+  const navItems = [
+    { href: '/projects' as const, label: 'Проекты', icon: FolderKanban, badge: null },
+    { href: '/inbox' as const, label: 'Входящие', icon: Inbox, badge: inboxCount > 0 ? inboxCount : null },
+    { href: '/join' as const, label: 'Подключить бота', icon: Bot, badge: null },
+  ];
 
   return (
     <aside className="hidden md:flex h-screen w-[220px] shrink-0 flex-col bg-sidebar text-sidebar-foreground">
@@ -42,7 +57,7 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 p-2">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, badge }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <NextLink
@@ -56,7 +71,12 @@ export function AppSidebar() {
               )}
             >
               <Icon className="h-4 w-4" />
-              {label}
+              <span className="flex-1">{label}</span>
+              {badge !== null && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/15 px-1.5 text-[11px] font-medium tabular-nums">
+                  {badge}
+                </span>
+              )}
             </NextLink>
           );
         })}

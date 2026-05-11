@@ -6,7 +6,7 @@ export function parseMinuteOutput(raw: string): MinuteOutput {
   let parsed: unknown;
   try {
     parsed = JSON.parse(clean);
-  } catch (err) {
+  } catch {
     throw new Error(`LLM returned non-JSON: ${clean.slice(0, 200)}`);
   }
   const result = MinuteOutputSchema.safeParse(parsed);
