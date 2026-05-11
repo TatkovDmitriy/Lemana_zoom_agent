@@ -8,13 +8,15 @@ export const GET = withAuth(async (req, uid) => {
   const limit = Math.min(Number(searchParams.get('limit') ?? 20), 50);
   const cursor = searchParams.get('cursor');
 
-  let query = adminDb
-    .collection('minutes')
-    .where('ownerId', '==', uid)
-    .orderBy('date', 'desc')
-    .limit(limit);
-
-  if (projectId) query = query.where('projectId', '==', projectId) as typeof query;
+  // Equality filters must come before orderBy — build base query first
+  const base = adminDb.collection('minutes').where('ownerId', '==', uid);
+  const filtered =
+    projectId === 'null'
+      ? base.where('projectId', '==', null)
+      : projectId
+        ? base.where('projectId', '==', projectId)
+        : base;
+  let query = filtered.orderBy('date', 'desc').limit(limit);
 
   if (cursor) {
     const cursorDoc = await adminDb.collection('minutes').doc(cursor).get();
@@ -23,7 +25,8 @@ export const GET = withAuth(async (req, uid) => {
 
   const snap = await query.get();
   const minutes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  const nextCursor = snap.docs.at(-1)?.id ?? null;
+  // Only return cursor if a full page was returned (there may be more)
+  const nextCursor = snap.docs.length === limit ? (snap.docs.at(-1)?.id ?? null) : null;
 
   return NextResponse.json({ minutes, nextCursor });
 });

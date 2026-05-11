@@ -72,6 +72,19 @@ export const UpdateMinuteSchema = z.object({
   projectId: z.string().optional(),
 });
 
+export const JoinMeetingSchema = z.object({
+  meetingUrl: z
+    .string()
+    .url()
+    .refine(
+      (v) => /zoom\.us\/(j|w|my)\//i.test(v),
+      'Ожидается ссылка на Zoom-встречу (zoom.us/j/...)',
+    ),
+  password: z.string().max(32).optional(),
+  topic: z.string().max(200).optional(),
+  projectIdHint: z.string().min(1).optional(),
+});
+
 export const SearchQuerySchema = z.object({
   q: z.string().min(1).max(200),
   projectId: z.string().optional(),

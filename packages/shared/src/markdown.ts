@@ -148,7 +148,7 @@ export function buildObsidianFrontmatter(params: {
   output: MinuteOutput;
   input: MeetingInput;
   minuteId: string;
-  projectId: string;
+  projectId: string | null;
   catalogUrl: string;
   zoomMeetingId?: string;
   zoomRecordingUrl?: string;

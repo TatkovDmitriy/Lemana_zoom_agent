@@ -7,7 +7,7 @@ export async function saveMinute(params: {
   output: MinuteOutput;
   input: MeetingInput;
   ownerId: string;
-  projectId: string;
+  projectId: string | null;
   zoomMeetingId?: string;
   zoomRecordingUrl?: string;
 }): Promise<string> {
