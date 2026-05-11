@@ -1,11 +1,63 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+.next
+out
+build
+
+# Environment files — NEVER commit these
 .env
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-*.egg-info/
-dist/
-build/
-.pytest_cache/
-.mypy_cache/
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# Allowed
+!.env.example
+
+# Turbo cache
+.turbo
+
+# Coverage
+coverage
+
+# IDE
+.vscode
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Docker
+.dockerignore
+
+# Railway
+.railway
+
+# Vercel
+.vercel
+
+# Firebase emulator
+.firebase
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Vitest
+vitest.config.*.timestamp*

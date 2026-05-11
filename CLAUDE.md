@@ -1,68 +1,105 @@
-# Lemana Zoom Agent — Claude Instructions
+# Lemana Zoom Agent — Project Context for Claude Agents
 
-## Project
-AI-агент для работы с Zoom: автоматическая обработка записей встреч, транскрибация, саммаризация и доставка результатов.
+## What is this project?
 
-## Team Workflow
+Lemana Zoom Agent — autonomous system that:
+- Connects to corporate Zoom calls via MCP
+- Generates structured meeting minutes (summaries) via Claude API
+- Stores minutes in a web catalog (Next.js + Firebase) organized by project
+- Sends minutes to Telegram bot (@LemanaZoomBot)
+- Syncs minutes to Obsidian repository via GitHub API
 
-### Roles
-- **PM** — выдаёт задачи, принимает продуктовые решения, управляет приоритетами
-- **QA** — тестирует код, даёт "ок" на релиз, репортит баги
-- **Engineer (Claude)** — реализует фичи по задачам от PM
+## Infrastructure
 
-### Working with PM
-- Получил задачу → максимум 2 уточняющих вопроса, если что-то неясно
-- По завершении сообщить: что сделано, что затронуто, что тестировать
-- Техническое ограничение → сразу сообщить PM с альтернативой
+| Component | Technology |
+|---|---|
+| Repo | https://github.com/TatkovDmitriy/Lemana_zoom_agent |
+| Obsidian sync | https://github.com/TatkovDmitriy/Obsidian |
+| Web hosting | Vercel (connected to GitHub) |
+| Database | Firebase Firestore |
+| Auth | Firebase Auth (Google SSO) |
+| Worker | Long-running service (Railway) |
+| Telegram | @LemanaZoomBot |
+| Secrets | .env.local (NEVER in repo or chat) |
 
-### Working with QA
-After each feature, hand off with:
+## Monorepo Structure
+
 ```
-### Передача в QA: [Название фичи]
-- Что реализовано
-- Какие файлы изменены
-- Как запустить локально
-- Нужные переменные окружения
-- Известные ограничения / edge cases
-- Что обязательно проверить
-```
-
-- Баги от QA берутся в работу по приоритету PM
-- Critical баг → бросить текущую задачу, фиксить первым
-
-### Task Statuses
-- **IN PROGRESS** — взял в работу
-- **IN REVIEW** — готово, передал QA
-- **DONE** — QA дал ок
-- **BLOCKED** — блокер + причина
-
-## Git
-- Development branch: `claude/team-workflow-setup-EFksr` (per-task branches from main)
-- Push: `git push -u origin <branch-name>`
-- Never push to main without PR + QA approval
-
-## Architecture Decisions
-Документируй самостоятельно принятые архитектурные решения в:
-`decisions/` (в этом репо) или `10_Projects/Pet_Projects/Lemana_Zoom_Agent/decisions/` (Obsidian)
-
-## Project Structure
-```
-lemana_zoom_agent/
-├── src/
-│   ├── agent/          # Core agent logic
-│   ├── zoom/           # Zoom API integration
-│   ├── transcription/  # Audio transcription
-│   └── delivery/       # Result delivery (email, Slack, etc.)
-├── tests/
-├── decisions/          # Architecture Decision Records
-├── .env.example
-└── requirements.txt
+/apps/web         — Next.js (Vercel)
+/apps/watcher     — Zoom worker + Summarizer
+/apps/bot         — Telegram bot
+/packages/shared  — shared types, zod schemas, utilities
 ```
 
-## Environment Variables
+## Agent Roles
+
+- **PM** — manages backlog, decomposes features, makes product decisions
+- **Engineer** — implements features, writes code, deploys
+- **QA** — tests, monitors releases, fixes bugs, verifies integrations
+
+## Development Branch
+
+All work goes to `main` (merged from feature branches).
+
+## Key Files
+
+- `docs/backlog.md` — current task backlog
+- `docs/adr/` — Architecture Decision Records
+- `docs/tasks/` — task briefs for Engineer and QA
+
+## Environment Variables (never commit)
+
 ```
+# Firebase
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+FIREBASE_SERVICE_ACCOUNT_KEY=
+
+# Zoom
 ZOOM_ACCOUNT_ID=
 ZOOM_CLIENT_ID=
 ZOOM_CLIENT_SECRET=
+ZOOM_WEBHOOK_SECRET_TOKEN=
+
+# Telegram
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ALLOWED_USER_IDS=
+
+# Anthropic
 ANTHROPIC_API_KEY=
+
+# GitHub (Obsidian sync)
+GITHUB_TOKEN=
+GITHUB_OBSIDIAN_REPO=TatkovDmitriy/Obsidian
+
+# App
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
 ```
+
+## Phase Roadmap
+
+### Phase 1 — Core (current focus)
+- Zoom webhook → transcript → minutes → Firestore
+- Telegram push after each meeting
+- Basic web catalog: projects + minutes list
+
+### Phase 2 — Improvements
+- Search across minutes
+- Editing and tags
+- Obsidian sync
+- Auto-join via MCP (if feasible)
+
+### Phase 3 — Autonomy
+- Worker monitoring (uptime alerts)
+- Multi-user mode
+- Calendar integration (auto-detect meetings)
+
+## Coding Standards
+
+- TypeScript everywhere (strict mode)
+- Zod for all data validation at system boundaries
+- No inline secrets, no hardcoded IDs
+- Shared types live in `/packages/shared`
+- Each app has its own `package.json` and `.env.example`

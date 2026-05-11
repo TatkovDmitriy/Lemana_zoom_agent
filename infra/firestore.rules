@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ──────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(resource) {
+      return resource.data.ownerId == request.auth.uid;
+    }
+    function isNewOwner() {
+      return request.resource.data.ownerId == request.auth.uid;
+    }
+
+    // ── Users ─────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read, write: if isAuth() && request.auth.uid == uid;
+    }
+
+    // ── Projects ──────────────────────────────────────────────────
+    match /projects/{projectId} {
+      allow read: if isAuth() && isOwner(resource);
+      allow create: if isAuth() && isNewOwner();
+      allow update, delete: if isAuth() && isOwner(resource);
+    }
+
+    // ── Minutes ───────────────────────────────────────────────────
+    match /minutes/{minuteId} {
+      allow read: if isAuth() && isOwner(resource);
+      allow create: if isAuth() && isNewOwner();
+      allow update, delete: if isAuth() && isOwner(resource);
+    }
+
+    // ── Backend-only collections (Admin SDK only — no client access) ──
+    match /jobs/{jobId} {
+      allow read, write: if false;
+    }
+    match /zoom_tokens/{docId} {
+      allow read, write: if false;
+    }
+    match /telegram_bindings/{code} {
+      allow read, write: if false;
+    }
+  }
+}
