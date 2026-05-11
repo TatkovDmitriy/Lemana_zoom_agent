@@ -43,15 +43,13 @@ async function main() {
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   console.log(`[zoom-bot] HTTP listening on :${config.PORT}`);
 
-  if (config.BOT_MODE === 'mock') {
-    console.log('[zoom-bot] mock mode — skipping Firestore job listener');
-  } else {
-    const unsubscribe = startJobListener();
-    process.on('SIGTERM', () => unsubscribe());
-  }
+  // Listener runs in both modes — runBot() branches on BOT_MODE internally.
+  // Skipping it in mock mode broke LZA-QA-006 end-to-end testing.
+  const unsubscribe = startJobListener();
 
   process.on('SIGTERM', async () => {
     console.log('[zoom-bot] SIGTERM received, shutting down…');
+    unsubscribe();
     await app.close();
     process.exit(0);
   });
