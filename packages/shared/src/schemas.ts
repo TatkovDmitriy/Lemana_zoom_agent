@@ -11,8 +11,8 @@ export const MeetingTypeSchema = z.enum([
 
 export const ActionItemSchema = z.object({
   text: z.string().min(1),
-  owner: z.string().optional(),
-  due: z.string().optional(),
+  owner: z.string().nullish().transform((v) => v ?? undefined),
+  due: z.string().nullish().transform((v) => v ?? undefined),
 });
 
 export const MinuteOutputSchema = z.object({
@@ -23,7 +23,6 @@ export const MinuteOutputSchema = z.object({
   actionItems: z.array(ActionItemSchema),
   openQuestions: z.array(z.string()),
   nextSteps: z.array(z.string()),
-  markdown: z.string(),
 });
 
 export const ZoomRecordingFileSchema = z.object({
