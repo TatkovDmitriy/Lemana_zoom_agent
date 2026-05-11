@@ -15,7 +15,6 @@
     "@lemana/shared": "workspace:*",
     "fastify": "5.3.2",
     "firebase-admin": "12.7.0",
-    "openai": "4.104.0",
     "zod": "3.24.2"
   },
   "devDependencies": {

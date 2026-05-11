@@ -5,7 +5,12 @@ const ConfigSchema = z.object({
   FIREBASE_ADMIN_CLIENT_EMAIL: z.string().email(),
   FIREBASE_ADMIN_PRIVATE_KEY: z.string().min(1),
 
-  OPENAI_API_KEY: z.string().min(1),
+  // faster-whisper (self-hosted) — no external API key required.
+  WHISPER_MODEL: z.string().default('large-v3'),
+  WHISPER_DEVICE: z.enum(['cpu', 'cuda', 'auto']).default('cpu'),
+  WHISPER_COMPUTE_TYPE: z.string().default('int8'),
+  WHISPER_LANGUAGE: z.string().default('ru'),
+  WHISPER_SCRIPT: z.string().default('/app/transcribe.py'),
 
   ZOOM_SDK_KEY: z.string().default(''),
   ZOOM_SDK_SECRET: z.string().default(''),
