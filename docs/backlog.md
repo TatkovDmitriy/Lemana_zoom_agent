@@ -16,9 +16,7 @@ _Last updated: 2026-05-11 | PM: Claude_
 
 | ID | Priority | Component | Status | Title |
 |---|---|---|---|---|
-| LZA-015 | P0 | bot | TODO | Deploy apps/bot на Railway |
-| LZA-016 | P0 | infra | TODO | Прописать Zoom Webhook URL в Zoom Marketplace |
-| LZA-025 | P0 | web | TODO | Качественный UI/UX фронтенд: каталог записей и проекты |
+| LZA-027 | P0 | web+watcher | TODO | Inbox: привязка минуток к проектам |
 
 ---
 
@@ -33,15 +31,17 @@ _Last updated: 2026-05-11 | PM: Claude_
 | LZA-005 | watcher | Zoom transcript download через API |
 | LZA-006 | watcher | Claude API summarizer — генерация минуток из транскрипта |
 | LZA-007 | watcher | Firebase write — сохранение минутки в Firestore |
-| LZA-008 | bot | Telegram bot — /start, базовая команда, push уведомление |
 | LZA-009 | web | Next.js app init — Firebase Auth (Google SSO) |
 | LZA-010 | web | Страница Projects — список проектов из Firestore |
 | LZA-011 | web | Страница Minutes — список минуток проекта |
 | LZA-012 | web | Страница MeetingDetail — полная минутка |
 | LZA-013 | infra | Railway deploy — watcher сервис |
 | LZA-014 | infra | Vercel deploy — web приложение |
+| LZA-016 | infra | Zoom Webhook URL validated in Zoom Marketplace |
 | LZA-017 | infra | Firebase Google Auth — включить провайдер + Vercel домен |
 | LZA-023 | infra | Obsidian sync — auto-push docs в GitHub repo |
+| LZA-025 | web | Качественный UI/UX фронтенд: каталог записей и проекты |
+| LZA-028 | zoom-bot | Railway deploy — zoom-bot (mock режим) |
 
 ---
 
@@ -60,6 +60,7 @@ _Last updated: 2026-05-11 | PM: Claude_
 
 | ID | Priority | Component | Status | Title |
 |---|---|---|---|---|
+| LZA-015 | P2 | bot | TODO | Deploy Telegram bot на Railway |
 | LZA-030 | P1 | infra | TODO | Worker monitoring — uptime alerts |
 | LZA-031 | P2 | web | TODO | Мультипользовательский режим |
 | LZA-032 | P2 | watcher | TODO | Интеграция с Google Calendar |
