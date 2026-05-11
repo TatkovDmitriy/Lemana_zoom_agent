@@ -110,6 +110,7 @@ export default function InboxPage() {
       });
       if (!res.ok) throw new Error();
       setMinutes((prev) => prev?.filter((m) => m.id !== assignTarget.id) ?? null);
+      window.dispatchEvent(new CustomEvent('inbox:changed'));
       const project = projects?.find((p) => p.id === projectId);
       toast.success(
         `Минутка перенесена в проект «${project?.name ?? projectId}»`,

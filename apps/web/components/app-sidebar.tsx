@@ -4,7 +4,7 @@ import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bot, FolderKanban, Inbox, LogOut, Sparkles } from 'lucide-react';
 import { signOut } from 'firebase/auth';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getClientAuth } from '@/lib/firebase-client';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
@@ -14,17 +14,24 @@ export function AppSidebar() {
   const auth = useAuth();
   const [inboxCount, setInboxCount] = useState<number>(0);
 
-  useEffect(() => {
+  const fetchCount = useCallback(() => {
     if (auth.status !== 'authenticated') return;
-    let cancelled = false;
     fetch('/api/minutes/inbox-count', {
       headers: { Authorization: `Bearer ${auth.token}` },
     })
       .then((r) => r.json())
-      .then((d) => { if (!cancelled) setInboxCount(d.count ?? 0); })
+      .then((d) => setInboxCount(d.count ?? 0))
       .catch(() => {});
-    return () => { cancelled = true; };
   }, [auth]);
+
+  useEffect(() => {
+    fetchCount();
+  }, [fetchCount]);
+
+  useEffect(() => {
+    window.addEventListener('inbox:changed', fetchCount);
+    return () => window.removeEventListener('inbox:changed', fetchCount);
+  }, [fetchCount]);
 
   async function handleSignOut() {
     await signOut(getClientAuth());
