@@ -12,10 +12,8 @@ const ConfigSchema = z.object({
   WHISPER_LANGUAGE: z.string().default('ru'),
   WHISPER_SCRIPT: z.string().default('/app/transcribe.py'),
 
-  ZOOM_SDK_KEY: z.string().default(''),
-  ZOOM_SDK_SECRET: z.string().default(''),
   ZOOM_BOT_NAME: z.string().default('Lemana AI'),
-  ZOOM_SDK_BINARY: z.string().default('/app/zoom-sdk/zoommtg'),
+  MEETING_TIMEOUT_MIN: z.coerce.number().int().default(120),
 
   BOT_MODE: z.enum(['mock', 'real']).catch('mock'),
 

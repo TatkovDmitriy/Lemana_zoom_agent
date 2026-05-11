@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
+import { chromium } from 'playwright';
 import { config } from './config.js';
 import { parseZoomUrl } from './zoom/url.js';
-import { startAudioCapture, type AudioCapture } from './audio.js';
+import { startAudioCapture } from './audio.js';
 
 export type BotResult = {
   audioFile: string;
@@ -31,25 +31,15 @@ export async function runBot({ meetingUrl, password, jobId }: JoinOptions): Prom
   return runReal({ meetingUrl, password, meetingId, audioFile, startedAt });
 }
 
-async function runMock({
-  audioFile,
-  startedAt,
-}: {
-  audioFile: string;
-  startedAt: string;
-}): Promise<BotResult> {
-  console.log('[bot] BOT_MODE=mock — simulating 30s meeting');
-  // Mock mode: write a sentinel so transcribe() returns a placeholder
-  // instead of calling Whisper on a non-existent recording.
+async function runMock({ audioFile, startedAt }: { audioFile: string; startedAt: string }): Promise<BotResult> {
+  console.log('[bot] BOT_MODE=mock — simulating 5s meeting');
   await writeFile(audioFile, MOCK_TRANSCRIPT_MARKER);
-  await new Promise((r) => setTimeout(r, 30_000));
-
+  await new Promise((r) => setTimeout(r, 5_000));
   const endedAt = new Date().toISOString();
   return { audioFile, startedAt, endedAt, durationMin: 1 };
 }
 
 async function runReal({
-  meetingUrl,
   password,
   meetingId,
   audioFile,
@@ -61,42 +51,94 @@ async function runReal({
   audioFile: string;
   startedAt: string;
 }): Promise<BotResult> {
-  if (!config.ZOOM_SDK_KEY || !config.ZOOM_SDK_SECRET) {
-    throw new Error(
-      'BOT_MODE=real but ZOOM_SDK_KEY/SECRET are missing — see apps/zoom-bot/README.md',
-    );
-  }
+  const timeoutMs = config.MEETING_TIMEOUT_MIN * 60 * 1000;
 
-  console.log(`[bot] joining meeting ${meetingId} as "${config.ZOOM_BOT_NAME}"`);
-  const capture: AudioCapture = await startAudioCapture(audioFile);
+  console.log(`[bot] launching Chromium for meeting ${meetingId}`);
 
-  // The Zoom Linux Meeting SDK ships as a binary that must be downloaded
-  // manually from https://developers.zoom.us/docs/meeting-sdk/linux/ and
-  // placed at ZOOM_SDK_BINARY. The wrapper invocation below assumes a CLI
-  // that accepts --meeting-id / --password / --display-name. Adjust the
-  // arguments to match the binary you ship; see README for details.
-  const sdkProc = spawn(
-    config.ZOOM_SDK_BINARY,
-    [
-      '--meeting-id', meetingId,
-      '--password', password ?? '',
-      '--display-name', config.ZOOM_BOT_NAME,
-      '--sdk-key', config.ZOOM_SDK_KEY,
-      '--sdk-secret', config.ZOOM_SDK_SECRET,
-      '--meeting-url', meetingUrl,
+  const browser = await chromium.launch({
+    headless: false,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--use-fake-ui-for-media-stream',
+      '--disable-web-security',
+      '--allow-running-insecure-content',
     ],
-    { stdio: ['ignore', 'inherit', 'inherit'] },
-  );
-
-  await new Promise<void>((resolve, reject) => {
-    sdkProc.on('exit', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Zoom SDK exited with code ${code}`));
-    });
-    sdkProc.on('error', reject);
   });
 
-  await capture.stop();
+  const context = await browser.newContext({
+    permissions: ['microphone', 'camera'],
+    userAgent:
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  });
+
+  const page = await context.newPage();
+
+  try {
+    const joinUrl = `https://zoom.us/wc/join/${meetingId}`;
+    console.log(`[bot] navigating to ${joinUrl}`);
+    await page.goto(joinUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+    // Accept cookies if shown
+    await page.locator('button:has-text("Accept")').click({ timeout: 5_000 }).catch(() => {});
+    await page.locator('button:has-text("Accept All")').click({ timeout: 3_000 }).catch(() => {});
+
+    // Fill name
+    console.log('[bot] filling name');
+    const nameInput = page
+      .locator('input[placeholder*="name"], input[id*="name"], input[data-testid*="name"]')
+      .first();
+    await nameInput.waitFor({ timeout: 15_000 });
+    await nameInput.fill(config.ZOOM_BOT_NAME);
+
+    // Fill password if provided
+    if (password) {
+      const pwdInput = page
+        .locator('input[type="password"], input[placeholder*="passcode"], input[placeholder*="password"]')
+        .first();
+      const hasPwd = await pwdInput.isVisible().catch(() => false);
+      if (hasPwd) {
+        console.log('[bot] filling password');
+        await pwdInput.fill(password);
+      }
+    }
+
+    // Click Join button
+    console.log('[bot] clicking Join');
+    await page.locator('button:has-text("Join"), button[type="submit"]').first().click();
+
+    // Handle preview screen — click Join again
+    await page
+      .locator('button:has-text("Join"), button:has-text("Join Meeting")')
+      .first()
+      .click({ timeout: 15_000 })
+      .catch(() => {});
+
+    // Handle "Join Audio by Computer"
+    await page
+      .locator('button:has-text("Join Audio by Computer"), button:has-text("Join Audio")')
+      .first()
+      .click({ timeout: 15_000 })
+      .catch(() => {});
+
+    console.log('[bot] joined meeting, starting audio capture');
+    const capture = await startAudioCapture(audioFile);
+
+    // Wait for meeting to end or timeout
+    try {
+      await page.waitForSelector(
+        'text=This meeting has been ended, text=The meeting has been ended, text=Meeting is over',
+        { timeout: timeoutMs },
+      );
+      console.log('[bot] meeting ended by host');
+    } catch {
+      console.log('[bot] meeting timeout reached');
+    }
+
+    await capture.stop();
+  } finally {
+    await browser.close();
+  }
 
   const endedAt = new Date().toISOString();
   const durationMin = Math.max(
