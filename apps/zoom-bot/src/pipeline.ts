@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import type { JoinMeetingPayload, ProcessRecordingPayload } from './types.js';
-import { db } from './firestore/client.js';
+import { getDb } from './firestore/client.js';
 import { runBot } from './bot.js';
 import { transcribeAudio } from './transcribe.js';
 import { parseZoomUrl } from './zoom/url.js';
@@ -11,7 +11,7 @@ export async function processJoinMeeting(
 ): Promise<void> {
   console.log(`[zoom-bot] picking up join job ${jobId} → ${payload.meetingUrl}`);
 
-  await db
+  await getDb()
     .collection('jobs')
     .doc(jobId)
     .update({ status: 'in_progress', updatedAt: Timestamp.now() });
@@ -39,7 +39,7 @@ export async function processJoinMeeting(
       projectIdHint: payload.projectIdHint,
     };
 
-    const ref = await db.collection('jobs').add({
+    const ref = await getDb().collection('jobs').add({
       type: 'process_recording',
       status: 'pending',
       payload: processPayload,
@@ -48,7 +48,7 @@ export async function processJoinMeeting(
       updatedAt: Timestamp.now(),
     });
 
-    await db.collection('jobs').doc(jobId).update({
+    await getDb().collection('jobs').doc(jobId).update({
       status: 'done',
       updatedAt: Timestamp.now(),
       processJobId: ref.id,
@@ -58,7 +58,7 @@ export async function processJoinMeeting(
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     console.error(`[zoom-bot] join job ${jobId} failed:`, error);
-    await db.collection('jobs').doc(jobId).update({
+    await getDb().collection('jobs').doc(jobId).update({
       status: 'failed',
       error,
       updatedAt: Timestamp.now(),

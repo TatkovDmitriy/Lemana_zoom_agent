@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import type { DocumentData } from 'firebase-admin/firestore';
 import type { Job } from './types.js';
-import { db } from './firestore/client.js';
+import { getDb } from './firestore/client.js';
 import { processJoinMeeting } from './pipeline.js';
 import { config } from './config.js';
 
@@ -18,7 +18,7 @@ const inFlight = new Set<string>();
 function startJobListener() {
   console.log(`[zoom-bot] listening for join_meeting jobs (mode=${config.BOT_MODE})…`);
 
-  return db
+  return getDb()
     .collection('jobs')
     .where('status', '==', 'pending')
     .where('type', '==', 'join_meeting')
@@ -40,14 +40,18 @@ function startJobListener() {
 }
 
 async function main() {
-  const unsubscribe = startJobListener();
-
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   console.log(`[zoom-bot] HTTP listening on :${config.PORT}`);
 
+  if (config.BOT_MODE === 'mock') {
+    console.log('[zoom-bot] mock mode — skipping Firestore job listener');
+  } else {
+    const unsubscribe = startJobListener();
+    process.on('SIGTERM', () => unsubscribe());
+  }
+
   process.on('SIGTERM', async () => {
     console.log('[zoom-bot] SIGTERM received, shutting down…');
-    unsubscribe();
     await app.close();
     process.exit(0);
   });

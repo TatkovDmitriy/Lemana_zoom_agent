@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 const ConfigSchema = z.object({
-  FIREBASE_PROJECT_ID: z.string().min(1),
-  FIREBASE_ADMIN_CLIENT_EMAIL: z.string().email(),
-  FIREBASE_ADMIN_PRIVATE_KEY: z.string().min(1),
+  FIREBASE_PROJECT_ID: z.string().default(''),
+  FIREBASE_ADMIN_CLIENT_EMAIL: z.string().default(''),
+  FIREBASE_ADMIN_PRIVATE_KEY: z.string().default(''),
 
   // faster-whisper (self-hosted) — no external API key required.
   WHISPER_MODEL: z.string().default('large-v3'),
@@ -17,7 +17,7 @@ const ConfigSchema = z.object({
   ZOOM_BOT_NAME: z.string().default('Lemana AI'),
   ZOOM_SDK_BINARY: z.string().default('/app/zoom-sdk/zoommtg'),
 
-  BOT_MODE: z.enum(['mock', 'real']).default('mock'),
+  BOT_MODE: z.enum(['mock', 'real']).catch('mock'),
 
   PORT: z.coerce.number().int().default(4001),
 });
