@@ -122,9 +122,9 @@ https://lemana-zoom-agent-web.vercel.app/api/zoom/webhook?x-vercel-protection-by
 ## Критерии готовности
 
 - [x] `curl` на webhook endpoint возвращает 200 с `plainToken` + `encryptedToken`
-- [ ] Zoom Marketplace показывает зелёный статус URL validation
-- [ ] Event `recording.completed` добавлен в subscriptions
-- [ ] LZA-016 закрыта
+- [x] Zoom Marketplace показывает зелёный статус URL validation
+- [x] Event `recording.completed` добавлен в subscriptions
+- [x] LZA-016 закрыта
 
 ---
 
