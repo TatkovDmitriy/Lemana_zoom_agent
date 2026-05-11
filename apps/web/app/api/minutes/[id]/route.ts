@@ -1,4 +1,4 @@
-import { type NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth';
 import { adminDb } from '@/lib/firebase-admin';
 import { UpdateMinuteSchema } from '@lemana/shared';

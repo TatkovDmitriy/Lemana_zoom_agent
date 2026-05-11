@@ -1,7 +1,7 @@
 'use client';
 
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { clientAuth } from '@/lib/firebase-client';
+import { getClientAuth } from '@/lib/firebase-client';
 import { useRouter } from 'next/navigation';
 
 export default function SignInPage() {
@@ -9,7 +9,7 @@ export default function SignInPage() {
 
   async function handleSignIn() {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(clientAuth, provider);
+    await signInWithPopup(getClientAuth(), provider);
     router.push('/projects');
   }
 
