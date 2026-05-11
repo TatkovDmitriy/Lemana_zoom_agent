@@ -40,7 +40,7 @@ async function runMock({ audioFile, startedAt }: { audioFile: string; startedAt:
   return { audioFile, startedAt, endedAt, durationMin: 1 };
 }
 
-// ── diagnostic helpers ──────────────────────────────────────────────────────
+// ── diagnostic helpers ─────────────────────────────────────────────────────────────────
 
 async function dumpPageState(page: Page, step: string): Promise<void> {
   try {
@@ -95,7 +95,7 @@ async function logAllInputs(page: Page): Promise<void> {
   }
 }
 
-// ── real mode ───────────────────────────────────────────────────────────────
+// ── real mode ───────────────────────────────────────────────────────────────────────────────
 
 async function runReal({
   password,
@@ -254,14 +254,21 @@ async function runReal({
     // Instead, wait for the page title to change from the pre-join value,
     // which happens once the meeting room loads.
     console.log('[bot] waiting for meeting room to load (title change)');
-    const inMeeting = await page
-      .waitForFunction(
-        () => document.title !== 'Zoom meeting on web' && document.title.trim() !== '',
-        { timeout: 30_000 },
-      )
-      .then(() => true)
-      .catch(() => false);
-    console.log(`[bot] after join wait: title="${await page.title().catch(() => '?')}" in_meeting=${inMeeting}`);
+    // Poll page.title() via Playwright API — avoids needing DOM types in the
+    // Node-side tsconfig (lib: ES2022, no 'dom'). page.waitForFunction would
+    // run in browser context but TS can't tell, so 'document' wouldn't resolve.
+    const titleDeadline = Date.now() + 30_000;
+    let inMeeting = false;
+    let finalTitle = '';
+    while (Date.now() < titleDeadline) {
+      finalTitle = await page.title().catch(() => '');
+      if (finalTitle && finalTitle !== 'Zoom meeting on web') {
+        inMeeting = true;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    console.log(`[bot] after join wait: title="${finalTitle}" in_meeting=${inMeeting}`);
 
     const audioJoined = await page
       .locator('button:has-text("Join Audio by Computer"), button:has-text("Join Audio"), button:has-text("Computer Audio")')
