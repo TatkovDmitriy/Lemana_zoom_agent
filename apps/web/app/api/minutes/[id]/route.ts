@@ -9,7 +9,15 @@ async function getOwnedMinute(id: string, uid: string) {
   if (!doc.exists) return null;
   const data = doc.data()!;
   if (data['ownerId'] !== uid) return null;
-  return { id: doc.id, ...data };
+  return {
+    id: doc.id,
+    ...data,
+    decisions: data['decisions'] ?? [],
+    actionItems: data['actionItems'] ?? [],
+    openQuestions: data['openQuestions'] ?? [],
+    nextSteps: data['nextSteps'] ?? [],
+    participants: data['participants'] ?? [],
+  };
 }
 
 export const GET = withAuth(async (req, uid) => {
