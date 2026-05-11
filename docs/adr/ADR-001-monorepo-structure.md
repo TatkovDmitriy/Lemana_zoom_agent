@@ -6,11 +6,11 @@
 
 ## Контекст
 
-Проект состоит из трёх сервисов (web, watcher, bot) с общими типами данных.
+Проект состоит из трёх отдельных сервисов (web, watcher, bot) с общими типами данных. Нужно решить: монорепо или отдельные репозитории.
 
 ## Решение
 
-Монорепо с pnpm workspaces:
+Использовать монорепо с pnpm workspaces:
 
 ```
 /apps/web         — Next.js (Vercel)
@@ -19,23 +19,23 @@
 /packages/shared  — общие типы, zod-схемы, утилиты
 ```
 
-Корневой `package.json` управляет workspaces, Turborepo для параллельных скриптов.
+Корневой `package.json` управляет workspaces, общие скрипты через `turbo` (опционально).
 
 ## Обоснование
 
-- Общие типы (`Meeting`, `MeetingMinutes`, `Project`) нужны всем трём сервисам
+- Общие типы (`Meeting`, `MeetingMinutes`, `Project`) нужны всем трём сервисам — монорепо позволяет импортировать их без публикации npm-пакета
 - Один PR покрывает изменения сразу в нескольких сервисах
-- Vercel умеет деплоить из монорепо (`rootDirectory: apps/web`)
-- Railway: `rootDirectory = apps/watcher`
+- Vercel умеет деплоить из монорепо (указать `rootDirectory: apps/web`)
+- Проще для небольшой команды (нет overhead на синхронизацию версий между репо)
 
 ## Последствия
 
-- Vercel: `rootDirectory = apps/web`
-- Railway (watcher): Dockerfile path = `apps/watcher/Dockerfile`, build context = корень репо
-- Railway (bot): аналогично watcher
-- TypeScript paths настроены для `@lemana/shared`
+- Engineer должен настроить `pnpm-workspace.yaml` и `packages/shared/package.json`
+- Vercel deploy settings: `rootDirectory = apps/web`, build command = `pnpm --filter web build`
+- Railway/Fly.io для watcher: `rootDirectory = apps/watcher`
+- TypeScript paths должны быть настроены для резолюции `@lemana/shared`
 
 ## Альтернативы, которые не выбрали
 
-- **Отдельные репо**: overhead на синхронизацию типов
-- **Без Turborepo**: выбрали Turborepo для параллельных build/test скриптов
+- **Отдельные репо**: overhead на синхронизацию типов, сложнее атомарные изменения
+- **Turborepo**: добавляет сложность, не нужен для текущего размера

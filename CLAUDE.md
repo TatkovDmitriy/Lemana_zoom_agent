@@ -18,7 +18,7 @@ Lemana Zoom Agent — autonomous system that:
 | Web hosting | Vercel (connected to GitHub) |
 | Database | Firebase Firestore |
 | Auth | Firebase Auth (Google SSO) |
-| Worker | Long-running service (Railway) |
+| Worker | Long-running service (Railway / Fly.io / Render) |
 | Telegram | @LemanaZoomBot |
 | Secrets | .env.local (NEVER in repo or chat) |
 
@@ -39,7 +39,7 @@ Lemana Zoom Agent — autonomous system that:
 
 ## Development Branch
 
-All work goes to `main` (merged from feature branches).
+All work goes to `claude/setup-lemana-pm-rNWI3`.
 
 ## Key Files
 
@@ -64,7 +64,6 @@ ZOOM_WEBHOOK_SECRET_TOKEN=
 
 # Telegram
 TELEGRAM_BOT_TOKEN=
-TELEGRAM_ALLOWED_USER_IDS=
 
 # Anthropic
 ANTHROPIC_API_KEY=
