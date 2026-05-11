@@ -94,16 +94,35 @@ export type ProcessRecordingPayload = {
   projectIdHint?: string;
 };
 
-export type Job = {
-  id: string;
-  type: 'process_recording';
-  status: JobStatus;
-  payload: ProcessRecordingPayload;
-  attempts: number;
-  error?: string;
-  createdAt: string;
-  updatedAt: string;
+export type JoinMeetingPayload = {
+  meetingUrl: string;
+  password?: string;
+  ownerId: string;
+  topic?: string;
+  projectIdHint?: string;
 };
+
+export type Job =
+  | {
+      id: string;
+      type: 'process_recording';
+      status: JobStatus;
+      payload: ProcessRecordingPayload;
+      attempts: number;
+      error?: string;
+      createdAt: string;
+      updatedAt: string;
+    }
+  | {
+      id: string;
+      type: 'join_meeting';
+      status: JobStatus;
+      payload: JoinMeetingPayload;
+      attempts: number;
+      error?: string;
+      createdAt: string;
+      updatedAt: string;
+    };
 
 export type ZoomRecordingCompletedEvent = {
   event: 'recording.completed';
