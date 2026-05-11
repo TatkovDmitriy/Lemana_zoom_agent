@@ -147,11 +147,7 @@ async function runReal({
   });
 
   try {
-    // Pass the encrypted pwd token via URL — Zoom decrypts it server-side
-    // and bypasses the passcode-entry step that otherwise blocks Join submission.
-    const joinUrl = password
-      ? `https://zoom.us/wc/join/${meetingId}?pwd=${encodeURIComponent(password)}`
-      : `https://zoom.us/wc/join/${meetingId}`;
+    const joinUrl = `https://zoom.us/wc/join/${meetingId}`;
     console.log(`[bot] navigating to ${joinUrl}`);
     await page.goto(joinUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
@@ -206,8 +202,6 @@ async function runReal({
     await dumpPageState(page, '05-after-name-fill');
 
     if (password) {
-      // Zoom's passcode field on /wc/join is #input-for-pwd with type="text"
-      // (NOT type="password"), no placeholder, no name — only the ID matches.
       const pwdInput = page
         .locator('#input-for-pwd, input[type="password"], input[placeholder*="passcode" i], input[placeholder*="password" i]')
         .first();
@@ -256,18 +250,18 @@ async function runReal({
 
     await dumpPageState(page, '08-after-preview-join');
 
-    // Wait for actual meeting URL (navigates from /join to /meeting/)
-    console.log('[bot] waiting for meeting to load (URL /meeting/)');
+    // Zoom Web Client is a SPA — URL stays on /join even after joining.
+    // Instead, wait for the page title to change from the pre-join value,
+    // which happens once the meeting room loads.
+    console.log('[bot] waiting for meeting room to load (title change)');
     const inMeeting = await page
-      .waitForURL(/\/wc\/\d+\/meeting/, { timeout: 30_000 })
+      .waitForFunction(
+        () => document.title !== 'Zoom meeting on web' && document.title.trim() !== '',
+        { timeout: 30_000 },
+      )
       .then(() => true)
       .catch(() => false);
-    if (!inMeeting) {
-      console.log('[bot:warn] URL did not change to /meeting/ — trying Enter key fallback');
-      await page.keyboard.press('Enter');
-      await page.waitForURL(/\/wc\/\d+\/meeting/, { timeout: 15_000 }).catch(() => {});
-    }
-    console.log(`[bot] after join wait: url=${page.url()}`);
+    console.log(`[bot] after join wait: title="${await page.title().catch(() => '?')}" in_meeting=${inMeeting}`);
 
     const audioJoined = await page
       .locator('button:has-text("Join Audio by Computer"), button:has-text("Join Audio"), button:has-text("Computer Audio")')
