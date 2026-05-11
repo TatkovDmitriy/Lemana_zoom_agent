@@ -41,6 +41,11 @@ export async function startAudioCapture(outputFile: string): Promise<AudioCaptur
     ffmpeg.on('error', reject);
   });
 
+  // Prevent Node from crashing on unhandled rejection if ffmpeg exits
+  // before stop() is called (e.g. PulseAudio not ready). Error is re-thrown
+  // by stop() so the caller still sees it.
+  exited.catch(() => {});
+
   return {
     outputFile,
     stop: async () => {
