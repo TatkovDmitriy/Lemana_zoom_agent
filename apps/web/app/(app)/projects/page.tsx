@@ -16,10 +16,12 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     const auth = getClientAuth();
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setAuthChecked(true);
       if (!user) {
         router.replace('/sign-in');
         return;
@@ -37,6 +39,14 @@ export default function ProjectsPage() {
     });
     return () => unsubscribe();
   }, [router]);
+
+  if (!authChecked) {
+    return (
+      <main className="container mx-auto max-w-4xl px-4 py-8">
+        <p className="text-muted-foreground">Загрузка…</p>
+      </main>
+    );
+  }
 
   return (
     <main className="container mx-auto max-w-4xl px-4 py-8">
