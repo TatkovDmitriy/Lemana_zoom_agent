@@ -3,7 +3,6 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DISPLAY=:99
 ENV PULSE_SERVER=unix:/tmp/pulseaudio.socket
-ENV NODE_ENV=production
 
 # System deps: display + audio + ffmpeg + python
 RUN apt-get update && apt-get install -y \
@@ -26,9 +25,9 @@ RUN pip3 install faster-whisper
 
 WORKDIR /app
 
-# Install dependencies (including playwright)
+# Install all dependencies including devDependencies (typescript needed for build)
 COPY package.json ./
-RUN npm install
+RUN npm install --include=dev
 
 # Install Playwright + Chromium with all system deps
 RUN npx playwright install chromium --with-deps
@@ -37,6 +36,8 @@ RUN npx playwright install chromium --with-deps
 COPY tsconfig.json ./
 COPY src ./src
 RUN ./node_modules/.bin/tsc --project tsconfig.json
+
+ENV NODE_ENV=production
 
 # Python transcription script
 COPY transcribe.py ./
