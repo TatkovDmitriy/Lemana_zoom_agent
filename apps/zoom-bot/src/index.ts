@@ -28,6 +28,10 @@ function startJobListener() {
         const job = { id: change.doc.id, ...change.doc.data() } as Job & DocumentData;
         if (job.type !== 'join_meeting') continue;
         if (inFlight.has(job.id)) continue;
+        if (inFlight.size >= 1) {
+          console.log(`[zoom-bot] already processing a job, skipping ${job.id}`);
+          continue;
+        }
 
         inFlight.add(job.id);
         processJoinMeeting(job.id, job.payload)
