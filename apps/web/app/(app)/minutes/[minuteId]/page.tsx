@@ -1,11 +1,21 @@
 'use client';
 
 import { useEffect, useState, use } from 'react';
+import NextLink from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Clock, Users, Calendar, ExternalLink, CheckSquare, HelpCircle, ArrowRight } from 'lucide-react';
+import {
+  Calendar,
+  CheckSquare,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  HelpCircle,
+  ListChecks,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate } from '@/lib/utils';
@@ -29,6 +39,8 @@ type Minute = {
   projectId: string;
 };
 
+type Project = { id: string; name: string };
+
 const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
   sync: 'Синк',
   stakeholder: 'Стейкхолдер',
@@ -37,11 +49,19 @@ const MEETING_TYPE_LABELS: Record<MeetingType, string> = {
   external: 'Внешняя',
 };
 
-function Section({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+function Section({
+  title,
+  icon: Icon,
+  children,
+}: {
+  title: string;
+  icon: React.ElementType;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="rounded-xl border p-5">
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        <Icon className="h-4 w-4" />
+    <section className="rounded-lg border border-border bg-card p-5">
+      <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
         {title}
       </h2>
       {children}
@@ -49,11 +69,16 @@ function Section({ title, icon: Icon, children }: { title: string; icon: React.E
   );
 }
 
-export default function MinutePage({ params }: { params: Promise<{ minuteId: string }> }) {
+export default function MinutePage({
+  params,
+}: {
+  params: Promise<{ minuteId: string }>;
+}) {
   const { minuteId } = use(params);
   const auth = useAuth();
   const router = useRouter();
   const [minute, setMinute] = useState<Minute | null>(null);
+  const [project, setProject] = useState<Project | null>(null);
 
   useEffect(() => {
     if (auth.status === 'unauthenticated') router.replace('/sign-in');
@@ -61,80 +86,114 @@ export default function MinutePage({ params }: { params: Promise<{ minuteId: str
 
   useEffect(() => {
     if (auth.status !== 'authenticated') return;
-    fetch(`/api/minutes/${minuteId}`, { headers: { Authorization: `Bearer ${auth.token}` } })
+    const headers = { Authorization: `Bearer ${auth.token}` };
+    fetch(`/api/minutes/${minuteId}`, { headers })
       .then((r) => {
         if (!r.ok) throw new Error();
         return r.json();
       })
-      .then(setMinute)
+      .then((m: Minute) => {
+        setMinute(m);
+        if (m.projectId) {
+          return fetch(`/api/projects/${m.projectId}`, { headers })
+            .then((r) => (r.ok ? r.json() : null))
+            .then(setProject);
+        }
+        return undefined;
+      })
       .catch(() => toast.error('Не удалось загрузить минутку'));
   }, [auth, minuteId]);
 
   if (auth.status === 'loading' || !minute) {
     return (
-      <div className="mx-auto max-w-3xl p-8">
-        <Skeleton className="mb-4 h-8 w-64" />
+      <div>
         <Skeleton className="mb-2 h-4 w-48" />
-        <div className="mt-6 space-y-4">
-          <Skeleton className="h-28 w-full rounded-xl" />
-          <Skeleton className="h-28 w-full rounded-xl" />
+        <Skeleton className="mb-3 h-9 w-3/4" />
+        <Skeleton className="mb-8 h-4 w-1/2" />
+        <div className="space-y-4">
+          <Skeleton className="h-32 w-full rounded-lg" />
+          <Skeleton className="h-32 w-full rounded-lg" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-3xl p-8">
-      <div className="mb-6 flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => router.push(`/projects/${minute.projectId}`)}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <span className="text-sm text-muted-foreground">Назад к проекту</span>
-      </div>
+    <div>
+      <nav className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <NextLink href="/projects" className="hover:text-foreground transition-colors">
+          Проекты
+        </NextLink>
+        <ChevronRight className="h-3 w-3" />
+        {project ? (
+          <>
+            <NextLink
+              href={`/projects/${minute.projectId}`}
+              className="hover:text-foreground transition-colors"
+            >
+              {project.name}
+            </NextLink>
+            <ChevronRight className="h-3 w-3" />
+          </>
+        ) : null}
+        <span className="text-foreground truncate max-w-[200px]">{minute.title}</span>
+      </nav>
 
-      <div className="mb-6">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <Badge variant={minute.meetingType}>{MEETING_TYPE_LABELS[minute.meetingType]}</Badge>
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+      <header className="mb-8 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={minute.meetingType}>
+            {MEETING_TYPE_LABELS[minute.meetingType]}
+          </Badge>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Calendar className="h-3.5 w-3.5" />
             {formatDate(minute.date)}
           </span>
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Clock className="h-3.5 w-3.5" />
             {minute.durationMin} мин
           </span>
           {minute.participants.length > 0 && (
-            <span className="flex items-center gap-1 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Users className="h-3.5 w-3.5" />
-              {minute.participants.join(', ')}
+              {minute.participants.length} участников
             </span>
           )}
         </div>
-        <h1 className="text-2xl font-bold">{minute.title}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight leading-tight">
+          {minute.title}
+        </h1>
+        {minute.participants.length > 0 && (
+          <p className="text-sm text-muted-foreground">
+            {minute.participants.join(', ')}
+          </p>
+        )}
         {minute.obsidianPath && (
           <a
             href={`obsidian://open?vault=&file=${encodeURIComponent(minute.obsidianPath)}`}
-            className="mt-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
           >
             <ExternalLink className="h-3 w-3" />
             Открыть в Obsidian
           </a>
         )}
-      </div>
+      </header>
 
       <div className="space-y-4">
-        <section className="rounded-xl border bg-muted/30 p-5">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Резюме</h2>
-          <p className="text-sm leading-relaxed">{minute.summary}</p>
+        <section className="rounded-lg border border-border bg-muted/40 p-5">
+          <h2 className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Sparkles className="h-3.5 w-3.5" />
+            Резюме
+          </h2>
+          <p className="text-sm leading-relaxed text-foreground/90">{minute.summary}</p>
         </section>
 
         {minute.decisions.length > 0 && (
           <Section title="Решения" icon={CheckSquare}>
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
               {minute.decisions.map((d, i) => (
-                <li key={i} className="flex gap-2 text-sm">
-                  <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-primary" />
-                  {d}
+                <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/60" />
+                  <span>{d}</span>
                 </li>
               ))}
             </ul>
@@ -142,15 +201,30 @@ export default function MinutePage({ params }: { params: Promise<{ minuteId: str
         )}
 
         {minute.actionItems.length > 0 && (
-          <Section title="Задачи" icon={ArrowRight}>
+          <Section title="Задачи" icon={ListChecks}>
             <ul className="space-y-2">
               {minute.actionItems.map((a, i) => (
-                <li key={i} className="rounded-md border p-3 text-sm">
-                  <p>{a.text}</p>
-                  <div className="mt-1 flex gap-3 text-xs text-muted-foreground">
-                    {a.owner && <span>👤 {a.owner}</span>}
-                    {a.due && <span>📅 {a.due}</span>}
-                  </div>
+                <li
+                  key={i}
+                  className="rounded-md border border-border bg-background p-3 text-sm"
+                >
+                  <p className="leading-snug">{a.text}</p>
+                  {(a.owner || a.due) && (
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                      {a.owner && (
+                        <span className="inline-flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          {a.owner}
+                        </span>
+                      )}
+                      {a.due && (
+                        <span className="inline-flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {a.due}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -159,10 +233,16 @@ export default function MinutePage({ params }: { params: Promise<{ minuteId: str
 
         {minute.openQuestions.length > 0 && (
           <Section title="Открытые вопросы" icon={HelpCircle}>
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
               {minute.openQuestions.map((q, i) => (
-                <li key={i} className="text-sm text-muted-foreground">
-                  {i + 1}. {q}
+                <li
+                  key={i}
+                  className="flex gap-2.5 text-sm leading-relaxed text-foreground/90"
+                >
+                  <span className="text-muted-foreground tabular-nums">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span>{q}</span>
                 </li>
               ))}
             </ul>
@@ -170,12 +250,14 @@ export default function MinutePage({ params }: { params: Promise<{ minuteId: str
         )}
 
         {minute.nextSteps.length > 0 && (
-          <Section title="Следующие шаги" icon={ArrowRight}>
-            <ul className="space-y-1.5">
+          <Section title="Следующие шаги" icon={ChevronRight}>
+            <ul className="space-y-2">
               {minute.nextSteps.map((s, i) => (
-                <li key={i} className="flex gap-2 text-sm">
-                  <span className="text-muted-foreground">{i + 1}.</span>
-                  {s}
+                <li key={i} className="flex gap-2.5 text-sm leading-relaxed">
+                  <span className="text-muted-foreground tabular-nums">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span>{s}</span>
                 </li>
               ))}
             </ul>
