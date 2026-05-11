@@ -34,8 +34,8 @@ export async function processRecording(
       recordingUrl: payload.recordingUrl,
     };
 
-    // Determine project for this minute (inbox by default)
-    const projectId = payload.projectIdHint ?? (await getDefaultProjectId(payload.ownerId));
+    // Use the project hint if provided; otherwise leave null (→ appears in /inbox).
+    const projectId = payload.projectIdHint ?? null;
 
     const catalogUrl = `${config.WEB_APP_BASE_URL}`;
     const output = await summarize(input, catalogUrl);
@@ -53,8 +53,9 @@ export async function processRecording(
     const minuteUrl = `${config.WEB_APP_BASE_URL}/minutes/${minuteId}`;
     output.markdown = output.markdown.replace(catalogUrl, minuteUrl);
 
-    // Determine Obsidian folder
-    const obsidianFolder = await getObsidianFolder(projectId) ?? DEFAULT_OBSIDIAN_FOLDER;
+    // Determine Obsidian folder (fall back to default when no project set).
+    const obsidianFolder =
+      (projectId ? await getObsidianFolder(projectId) : null) ?? DEFAULT_OBSIDIAN_FOLDER;
 
     // Commit to Obsidian
     const fileName = buildObsidianFileName(input.startedAt, output.meetingType, input.topic);
@@ -105,29 +106,6 @@ async function fetchTranscript(url?: string): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to fetch transcript: ${res.status}`);
   return res.text();
-}
-
-async function getDefaultProjectId(ownerId: string): Promise<string> {
-  const snap = await db
-    .collection('projects')
-    .where('ownerId', '==', ownerId)
-    .where('slug', '==', 'inbox')
-    .limit(1)
-    .get();
-  if (!snap.empty) return snap.docs[0]!.id;
-
-  // Create inbox project if it doesn't exist
-  const ref = await db.collection('projects').add({
-    ownerId,
-    name: 'Входящие',
-    slug: 'inbox',
-    description: 'Минутки без проекта',
-    color: null,
-    obsidianFolder: DEFAULT_OBSIDIAN_FOLDER,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  });
-  return ref.id;
 }
 
 async function getObsidianFolder(projectId: string): Promise<string | null> {
