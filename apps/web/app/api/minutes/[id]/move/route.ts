@@ -6,7 +6,7 @@ import { Timestamp } from 'firebase-admin/firestore';
 
 const MoveSchema = z.object({ projectId: z.string().min(1) });
 
-export const POST = withAuth(async (req, uid) => {
+const handler = withAuth(async (req, uid) => {
   const parts = req.nextUrl.pathname.split('/');
   const id = parts.at(-2)!; // .../minutes/[id]/move
 
@@ -21,7 +21,6 @@ export const POST = withAuth(async (req, uid) => {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Verify target project belongs to same user
   const project = await adminDb.collection('projects').doc(parsed.data.projectId).get();
   if (!project.exists || project.data()!['ownerId'] !== uid) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
@@ -34,3 +33,6 @@ export const POST = withAuth(async (req, uid) => {
 
   return NextResponse.json({ ok: true });
 });
+
+export const POST = handler;
+export const PATCH = handler;

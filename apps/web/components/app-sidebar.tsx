@@ -2,19 +2,39 @@
 
 import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, LogOut, Sparkles } from 'lucide-react';
+import { FolderKanban, Inbox, LogOut, Sparkles } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { getClientAuth } from '@/lib/firebase-client';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
-const navItems = [
-  { href: '/projects' as const, label: 'Проекты', icon: FolderKanban },
-];
+function useInboxCount() {
+  const auth = useAuth();
+  const [count, setCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (auth.status !== 'authenticated') return;
+    fetch('/api/minutes/inbox-count', {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setCount(data.count ?? 0))
+      .catch(() => {});
+  }, [auth]);
+
+  return count;
+}
+
+const staticNavItems = [
+  { href: '/inbox', label: 'Входящие', icon: Inbox },
+  { href: '/projects', label: 'Проекты', icon: FolderKanban },
+] as const;
 
 export function AppSidebar() {
   const pathname = usePathname();
   const auth = useAuth();
+  const inboxCount = useInboxCount();
 
   async function handleSignOut() {
     await signOut(getClientAuth());
@@ -41,12 +61,13 @@ export function AppSidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 p-2">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {staticNavItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
+          const isInbox = href === '/inbox';
           return (
             <NextLink
               key={href}
-              href={href}
+              href={href as never}
               className={cn(
                 'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors',
                 active
@@ -54,8 +75,13 @@ export function AppSidebar() {
                   : 'text-sidebar-muted hover:bg-sidebar-accent/60 hover:text-sidebar-foreground',
               )}
             >
-              <Icon className="h-4 w-4" />
-              {label}
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{label}</span>
+              {isInbox && inboxCount !== null && inboxCount > 0 && (
+                <span className="ml-auto flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold tabular-nums text-primary-foreground">
+                  {inboxCount > 99 ? '99+' : inboxCount}
+                </span>
+              )}
             </NextLink>
           );
         })}

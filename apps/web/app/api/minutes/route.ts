@@ -10,7 +10,12 @@ export const GET = withAuth(async (req, uid) => {
 
   // Equality filters must come before orderBy — build base query first
   const base = adminDb.collection('minutes').where('ownerId', '==', uid);
-  const filtered = projectId ? base.where('projectId', '==', projectId) : base;
+  const filtered =
+    projectId === 'null'
+      ? base.where('projectId', '==', null)
+      : projectId
+        ? base.where('projectId', '==', projectId)
+        : base;
   let query = filtered.orderBy('date', 'desc').limit(limit);
 
   if (cursor) {
