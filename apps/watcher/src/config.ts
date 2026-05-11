@@ -6,7 +6,7 @@ const ConfigSchema = z.object({
   FIREBASE_ADMIN_PRIVATE_KEY: z.string().min(1),
 
   ANTHROPIC_API_KEY: z.string().min(1),
-  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-5'),
+  ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-6'),
 
   GITHUB_TOKEN: z.string().min(1),
   GITHUB_OBSIDIAN_REPO: z.string().default('TatkovDmitriy/Obsidian'),
