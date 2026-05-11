@@ -103,7 +103,7 @@ const ConfigSchema = z.object({
   ZOOM_SDK_KEY: z.string(),           // Zoom Meeting SDK Key
   ZOOM_SDK_SECRET: z.string(),        // Zoom Meeting SDK Secret
   ZOOM_BOT_NAME: z.string().default('Lemana AI'),
-  OPENAI_API_KEY: z.string(),         // для Whisper API
+  WHISPER_MODEL: z.string().default('large-v3'), // faster-whisper модель
   ANTHROPIC_API_KEY: z.string(),      // для Claude (минутки)
   FIREBASE_PROJECT_ID: z.string(),
   FIREBASE_ADMIN_CLIENT_EMAIL: z.string(),
@@ -177,32 +177,81 @@ function startAudioCapture(meetingId: string): Promise<string> {
 
 ---
 
-## Whisper транскрипция (transcribe.ts)
+## Whisper транскрипция — self-hosted (transcribe.ts)
+
+**Решение: faster-whisper локально на сервере. Стоимость транскрипции = $0.**
+
+Используем [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — оптимизированная версия Whisper на CTranslate2, работает в 4x быстрее оригинала при том же качестве.
+
+### Модель
+
+| Модель | RAM | Качество RU | Скорость (1ч аудио) |
+|---|---|---|---|
+| `medium` | ~2 GB | Хорошее | ~3-5 мин |
+| `large-v3` | ~4 GB | Отличное | ~8-10 мин |
+
+**Выбрать `large-v3`** — русский язык требует хорошей модели.
+
+### Dockerfile — добавить Python + faster-whisper
+
+```dockerfile
+# Python для faster-whisper
+RUN apt-get install -y python3 python3-pip
+RUN pip3 install faster-whisper
+
+# Скачать модель при сборке (не при запуске)
+RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('large-v3', device='cpu', compute_type='int8')"
+```
+
+> Загрузка модели при `docker build` — ~3GB, зато при старте контейнера модель уже на месте.
+
+### transcribe.ts — вызов через child_process
 
 ```typescript
-import OpenAI from 'openai';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import fs from 'fs';
 
-const openai = new OpenAI({ apiKey: config.OPENAI_API_KEY });
+const execFileAsync = promisify(execFile);
 
 export async function transcribeAudio(audioFilePath: string): Promise<string> {
-  const audioFile = fs.createReadStream(audioFilePath);
-  
-  const transcription = await openai.audio.transcriptions.create({
-    file: audioFile,
-    model: 'whisper-1',
-    language: 'ru',          // русский язык
-    response_format: 'text',
-  });
-  
-  // Cleanup
+  // Python скрипт запускает faster-whisper и выводит текст в stdout
+  const { stdout } = await execFileAsync('python3', [
+    '/app/transcribe.py',
+    audioFilePath,
+    '--language', 'ru',
+    '--model', 'large-v3',
+  ]);
+
   fs.unlinkSync(audioFilePath);
-  
-  return transcription;
+  return stdout.trim();
 }
 ```
 
-**Стоимость Whisper:** $0.006/мин = ~$0.36 за час встречи (очень дёшево).
+### transcribe.py
+
+```python
+import sys
+from faster_whisper import WhisperModel
+
+audio_path = sys.argv[1]
+language = sys.argv[sys.argv.index('--language') + 1] if '--language' in sys.argv else 'ru'
+model_name = sys.argv[sys.argv.index('--model') + 1] if '--model' in sys.argv else 'large-v3'
+
+model = WhisperModel(model_name, device='cpu', compute_type='int8')
+segments, _ = model.transcribe(audio_path, language=language)
+
+for segment in segments:
+    print(segment.text, end=' ')
+```
+
+### Railway план
+
+`large-v3` на CPU требует ~4GB RAM. Нужен Railway план с достаточными ресурсами:
+- **Hobby**: 8GB RAM — достаточно ✅
+- Установить `RAILWAY_MEMORY_LIMIT=6144` в настройках сервиса
+
+**Стоимость транскрипции: $0** (платим только за Railway сервер).
 
 ---
 
