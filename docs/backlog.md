@@ -17,7 +17,7 @@ _Last updated: 2026-05-11 | PM: Claude_
 | ID | Priority | Component | Status | Title |
 |---|---|---|---|---|
 | LZA-015 | P0 | bot | TODO | Deploy apps/bot на Railway |
-| LZA-016 | P0 | infra | TODO | Прописать Zoom Webhook URL в Zoom Marketplace |
+| LZA-016 | P0 | infra | DONE | Прописать Zoom Webhook URL в Zoom Marketplace |
 | LZA-025 | P0 | web | TODO | Качественный UI/UX фронтенд: каталог записей и проекты |
 
 ---
