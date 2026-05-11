@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import type { DocumentData } from 'firebase-admin/firestore';
-import type { Job } from '@lemana/shared';
+import type { Job } from './types.js';
 import { db } from './firestore/client.js';
 import { processJoinMeeting } from './pipeline.js';
 import { config } from './config.js';
