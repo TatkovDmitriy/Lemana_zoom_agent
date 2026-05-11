@@ -21,6 +21,10 @@ const ConfigSchema = z.object({
 
   PORT: z.coerce.number().int().default(4000),
   ZOOM_USE_MOCK: z.string().transform((v) => v === 'true').default('false'),
+  ZOOM_ACCOUNT_ID: z.string().default(''),
+  ZOOM_CLIENT_ID: z.string().default(''),
+  ZOOM_CLIENT_SECRET: z.string().default(''),
+  ZOOM_WEBHOOK_SECRET_TOKEN: z.string().default(''),
 });
 
 function loadConfig() {
