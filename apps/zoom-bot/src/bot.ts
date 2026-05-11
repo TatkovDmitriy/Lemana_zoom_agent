@@ -147,7 +147,9 @@ async function runReal({
   });
 
   try {
-    const joinUrl = `https://zoom.us/wc/join/${meetingId}`;
+    const joinUrl = password
+      ? `https://zoom.us/wc/join/${meetingId}?pwd=${encodeURIComponent(password)}`
+      : `https://zoom.us/wc/join/${meetingId}`;
     console.log(`[bot] navigating to ${joinUrl}`);
     await page.goto(joinUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
@@ -279,6 +281,11 @@ async function runReal({
     if (audioJoined) console.log('[bot] clicked Join Audio by Computer');
 
     await dumpPageState(page, '09-in-meeting');
+
+    if (!inMeeting) {
+      console.log('[bot:warn] title never changed — bot did not join meeting, aborting');
+      throw new Error('Failed to join Zoom meeting: title did not change after join');
+    }
 
     console.log('[bot] joined meeting, starting audio capture');
     const capture = await startAudioCapture(audioFile);
