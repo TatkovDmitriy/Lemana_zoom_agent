@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import type { DocumentData } from 'firebase-admin/firestore';
 import type { Job } from './types.js';
-import { db } from './firestore/client.js';
+import { getDb } from './firestore/client.js';
 import { processJoinMeeting } from './pipeline.js';
 import { config } from './config.js';
 
@@ -18,7 +18,7 @@ const inFlight = new Set<string>();
 function startJobListener() {
   console.log(`[zoom-bot] listening for join_meeting jobs (mode=${config.BOT_MODE})…`);
 
-  return db
+  return getDb()
     .collection('jobs')
     .where('status', '==', 'pending')
     .where('type', '==', 'join_meeting')

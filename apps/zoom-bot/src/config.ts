@@ -1,9 +1,12 @@
 import { z } from 'zod';
 
 const ConfigSchema = z.object({
-  FIREBASE_PROJECT_ID: z.string().min(1),
-  FIREBASE_ADMIN_CLIENT_EMAIL: z.string().email(),
-  FIREBASE_ADMIN_PRIVATE_KEY: z.string().min(1),
+  // Firebase — optional at startup so the HTTP server can bind even without
+  // credentials (e.g. health-check-only deploys). Validated at usage time
+  // inside firestore/client.ts.
+  FIREBASE_PROJECT_ID: z.string().default(''),
+  FIREBASE_ADMIN_CLIENT_EMAIL: z.string().default(''),
+  FIREBASE_ADMIN_PRIVATE_KEY: z.string().default(''),
 
   // faster-whisper (self-hosted) — no external API key required.
   WHISPER_MODEL: z.string().default('large-v3'),
@@ -17,7 +20,8 @@ const ConfigSchema = z.object({
   ZOOM_BOT_NAME: z.string().default('Lemana AI'),
   ZOOM_SDK_BINARY: z.string().default('/app/zoom-sdk/zoommtg'),
 
-  BOT_MODE: z.enum(['mock', 'real']).default('mock'),
+  // .catch('mock') treats invalid/empty values as 'mock' instead of crashing.
+  BOT_MODE: z.enum(['mock', 'real']).catch('mock').default('mock'),
 
   PORT: z.coerce.number().int().default(4001),
 });
