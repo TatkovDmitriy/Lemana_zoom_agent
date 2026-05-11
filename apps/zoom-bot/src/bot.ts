@@ -147,7 +147,11 @@ async function runReal({
   });
 
   try {
-    const joinUrl = `https://zoom.us/wc/join/${meetingId}`;
+    // Pass the encrypted pwd token via URL — Zoom decrypts it server-side
+    // and bypasses the passcode-entry step that otherwise blocks Join submission.
+    const joinUrl = password
+      ? `https://zoom.us/wc/join/${meetingId}?pwd=${encodeURIComponent(password)}`
+      : `https://zoom.us/wc/join/${meetingId}`;
     console.log(`[bot] navigating to ${joinUrl}`);
     await page.goto(joinUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 
@@ -202,13 +206,17 @@ async function runReal({
     await dumpPageState(page, '05-after-name-fill');
 
     if (password) {
+      // Zoom's passcode field on /wc/join is #input-for-pwd with type="text"
+      // (NOT type="password"), no placeholder, no name — only the ID matches.
       const pwdInput = page
-        .locator('input[type="password"], input[placeholder*="passcode" i], input[placeholder*="password" i]')
+        .locator('#input-for-pwd, input[type="password"], input[placeholder*="passcode" i], input[placeholder*="password" i]')
         .first();
       const hasPwd = await pwdInput.isVisible().catch(() => false);
       if (hasPwd) {
-        console.log('[bot] filling password');
+        console.log('[bot] filling password (#input-for-pwd)');
         await pwdInput.fill(password);
+      } else {
+        console.log('[bot] no visible passcode field (likely auto-bypassed via URL pwd token)');
       }
     }
 
