@@ -33,10 +33,10 @@ RUN npm install
 # Install Playwright + Chromium with all system deps
 RUN npx playwright install chromium --with-deps
 
-# Build TypeScript
+# Build TypeScript — use local binary to avoid npx resolving wrong global tsc
 COPY tsconfig.json ./
 COPY src ./src
-RUN npx tsc --project tsconfig.json
+RUN ./node_modules/.bin/tsc --project tsconfig.json
 
 # Python transcription script
 COPY transcribe.py ./
