@@ -13,9 +13,17 @@ function getAdminApp(): App {
     return cachedApp;
   }
 
+  const serviceAccountJson = process.env['FIREBASE_SERVICE_ACCOUNT_JSON'];
+  if (serviceAccountJson) {
+    const sa = JSON.parse(serviceAccountJson);
+    cachedApp = initializeApp({ credential: cert(sa), projectId: sa.project_id });
+    return cachedApp;
+  }
+
   const projectId = process.env['FIREBASE_PROJECT_ID'];
   const clientEmail = process.env['FIREBASE_ADMIN_CLIENT_EMAIL'];
-  const privateKey = process.env['FIREBASE_ADMIN_PRIVATE_KEY']?.replace(/\\n/g, '\n');
+  const rawKey = process.env['FIREBASE_ADMIN_PRIVATE_KEY'] ?? '';
+  const privateKey = rawKey.replace(/\\n/g, '\n');
 
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error('Firebase Admin SDK env vars are not set');
