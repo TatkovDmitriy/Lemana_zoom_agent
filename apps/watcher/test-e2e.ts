@@ -6,13 +6,14 @@
  *   pnpm tsx --env-file .env.local apps/watcher/test-e2e.ts
  */
 import 'dotenv/config';
-import { config } from './src/config.js';
+import { config, allowedTelegramIds } from './src/config.js';
 import { summarize } from './src/summarizer/claude.js';
 import { saveMinute, updateMinuteObsidian } from './src/firestore/minutes.js';
 import { commitFile } from './src/obsidian/github.js';
 import { updateIndexPage } from './src/obsidian/index-page.js';
 import { buildObsidianFrontmatter, buildObsidianFileName } from '@lemana/shared';
 import { MOCK_MEETING } from './src/zoom/mock.js';
+import { db } from './src/firestore/client.js';
 
 const WEB_URL = config.WEB_APP_BASE_URL;
 const OBSIDIAN_FOLDER = '10_Projects/Pet_Projects/Lemana_Zoom_Agent';
@@ -83,11 +84,28 @@ async function run() {
   });
   console.log('   ✅ index updated');
 
-  // ── 5. Telegram (skipped without user_id) ─────────────────────
+  // ── 5. Telegram (requires linked user in Firestore + whitelist) ────
   console.log('\n5. Telegram notification…');
-  if (!process.env['TELEGRAM_ALLOWED_USER_IDS']) {
+  if (allowedTelegramIds.length === 0) {
     console.log('   ⚠️  TELEGRAM_ALLOWED_USER_IDS not set — skipping');
   } else {
+    // Seed users/{ownerId} with linked Telegram ID so notifyMinute can deliver
+    const recipientId = allowedTelegramIds[0]!;
+    await db
+      .collection('users')
+      .doc(MOCK_MEETING.ownerId)
+      .set(
+        {
+          uid: MOCK_MEETING.ownerId,
+          email: 'mock@test.local',
+          displayName: 'Mock User',
+          telegramUserId: recipientId,
+          createdAt: new Date().toISOString(),
+        },
+        { merge: true },
+      );
+    console.log(`   ✅ seeded users/${MOCK_MEETING.ownerId} → telegramUserId=${recipientId}`);
+
     const { notifyMinute } = await import('./src/telegram/notify.js');
     await notifyMinute({ output, input: MOCK_MEETING, minuteId, catalogUrl: WEB_URL });
     console.log('   ✅ sent');
