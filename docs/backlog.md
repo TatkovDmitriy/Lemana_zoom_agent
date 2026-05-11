@@ -46,6 +46,10 @@ _Last updated: 2026-05-11 | PM: Claude_
 
 ---
 
+| LZA-028 | P1 | zoom-bot | TODO | Zoom SDK Bot: автономная запись встреч по ссылке |
+
+---
+
 ## Backlog — Phase 2: Improvements
 
 | ID | Priority | Component | Status | Title |
