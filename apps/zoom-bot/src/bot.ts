@@ -119,6 +119,7 @@ async function runReal({
       '--no-sandbox',
       '--disable-setuid-sandbox',
       '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
       '--disable-web-security',
       '--allow-running-insecure-content',
     ],
@@ -246,6 +247,19 @@ async function runReal({
     if (joinAgainClicked) console.log('[bot] clicked Join on preview screen');
 
     await dumpPageState(page, '08-after-preview-join');
+
+    // Wait for actual meeting URL (navigates from /join to /meeting/)
+    console.log('[bot] waiting for meeting to load (URL /meeting/)');
+    const inMeeting = await page
+      .waitForURL(/\/wc\/\d+\/meeting/, { timeout: 30_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!inMeeting) {
+      console.log('[bot:warn] URL did not change to /meeting/ — trying Enter key fallback');
+      await page.keyboard.press('Enter');
+      await page.waitForURL(/\/wc\/\d+\/meeting/, { timeout: 15_000 }).catch(() => {});
+    }
+    console.log(`[bot] after join wait: url=${page.url()}`);
 
     const audioJoined = await page
       .locator('button:has-text("Join Audio by Computer"), button:has-text("Join Audio"), button:has-text("Computer Audio")')
