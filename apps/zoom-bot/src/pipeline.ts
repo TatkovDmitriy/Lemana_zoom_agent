@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase-admin/firestore';
-import type { JoinMeetingPayload, ProcessRecordingPayload } from '@lemana/shared';
+import type { JoinMeetingPayload, ProcessRecordingPayload } from './types.js';
 import { db } from './firestore/client.js';
 import { runBot } from './bot.js';
 import { transcribeAudio } from './transcribe.js';

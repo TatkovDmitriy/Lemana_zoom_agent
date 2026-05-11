@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "apps/zoom-bot/Dockerfile"
+dockerfilePath = "Dockerfile"
 buildCommand = ""
 
 [deploy]
