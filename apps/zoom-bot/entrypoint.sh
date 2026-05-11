@@ -15,14 +15,16 @@ sleep 1
 echo "[entrypoint] starting PulseAudio with virtual sink"
 mkdir -p /tmp/pulse
 unset PULSE_SERVER
-pulseaudio --start \
+# --system is required when running as root (Railway containers run as root).
+# -D daemonizes the process (replaces --start which is per-user only).
+pulseaudio --system -D \
   --exit-idle-time=-1 \
   --disallow-exit \
   --log-target=stderr \
   -L "load-module module-native-protocol-unix socket=/tmp/pulseaudio.socket auth-anonymous=1" \
   -L "load-module module-null-sink sink_name=virt_sink sink_properties=device.description=virt_sink" \
   -L "load-module module-virtual-source source_name=virt_source master=virt_sink.monitor" \
-  || echo "[entrypoint] pulseaudio --start returned non-zero (often OK in containers)"
+  || echo "[entrypoint] pulseaudio --system returned non-zero (often OK in containers)"
 sleep 1
 export PULSE_SERVER=unix:/tmp/pulseaudio.socket
 
