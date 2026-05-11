@@ -1,0 +1,26 @@
+{
+  "name": "@lemana/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "zod": "3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "vitest": "2.2.5"
+  }
+}
