@@ -1,23 +1,52 @@
-# syntax=docker/dockerfile:1
-# Build context = apps/zoom-bot/ (Railway Root Directory = apps/zoom-bot)
-# BOT_MODE=mock: no Python, no Whisper, no system audio — pure Node.js.
-# BOT_MODE=real: requires the Zoom Linux SDK binary mounted at /app/zoom-sdk/
-#   and a sidecar container (or host) with Xvfb + PulseAudio + FFmpeg +
-#   faster-whisper. See README.md for the full production setup guide.
+FROM ubuntu:22.04
 
-FROM node:20-alpine AS builder
+ENV DEBIAN_FRONTEND=noninteractive
+ENV DISPLAY=:99
+ENV PULSE_SERVER=unix:/tmp/pulseaudio.socket
+
+# System deps: display + audio + ffmpeg + python
+RUN apt-get update && apt-get install -y \
+    xvfb \
+    pulseaudio \
+    ffmpeg \
+    python3 \
+    python3-pip \
+    curl \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# faster-whisper
+RUN pip3 install faster-whisper
+
 WORKDIR /app
+
+# Install dependencies (including playwright)
 COPY package.json ./
-RUN npm install
+# Install all deps (including devDependencies for tsc) — NODE_ENV=production is set below
+RUN npm install --include=dev
+
+# Install Playwright + Chromium with all system deps
+RUN npx playwright install chromium --with-deps
+
+# Build TypeScript — use local binary to avoid npx resolving wrong global tsc
 COPY tsconfig.json ./
 COPY src ./src
-RUN npx tsc --project tsconfig.json
+RUN ./node_modules/.bin/tsc --project tsconfig.json
 
-FROM node:20-alpine AS runner
-WORKDIR /app
+# Python transcription script
+COPY transcribe.py ./
+
+# Entrypoint
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
+# Set production mode after build so devDeps were available during compilation
 ENV NODE_ENV=production
-COPY package.json ./
-RUN npm install --omit=dev
-COPY --from=builder /app/dist ./dist
+
 EXPOSE 4001
-CMD ["node", "dist/index.js"]
+CMD ["./entrypoint.sh"]
