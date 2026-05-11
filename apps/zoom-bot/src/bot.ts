@@ -213,7 +213,7 @@ async function runReal({
 
     console.log('[bot] looking for Join button');
     await logAllButtons(page);
-    await page
+    const joinLocator = page
       .locator(
         [
           'button:has-text("Join")',
@@ -222,20 +222,25 @@ async function runReal({
           'button:has-text("Войти")',
         ].join(', '),
       )
-      .first()
-      .click({ timeout: 10_000 })
+      .first();
+
+    // force:true bypasses the preview-meeting-info overlay that intercepts pointer events
+    const joinClicked = await joinLocator
+      .click({ force: true, timeout: 10_000 })
+      .then(() => true)
       .catch(async (e: Error) => {
-        console.log(`[bot:warn] join click failed: ${e.message}`);
-        await dumpPageState(page, '06-join-click-failed');
-        await logAllButtons(page);
+        console.log(`[bot:warn] force click failed (${e.message}), trying dispatchEvent`);
+        return joinLocator.dispatchEvent('click').then(() => true).catch(() => false);
       });
+    console.log(`[bot] join click result: ${joinClicked}`);
 
     await dumpPageState(page, '07-after-join-click');
 
+    // Preview screen may have a second Join / Join Meeting button
     const joinAgainClicked = await page
       .locator('button:has-text("Join"), button:has-text("Join Meeting"), button:has-text("Присоединиться")')
       .first()
-      .click({ timeout: 15_000 })
+      .click({ force: true, timeout: 15_000 })
       .then(() => true)
       .catch(() => false);
     if (joinAgainClicked) console.log('[bot] clicked Join on preview screen');
