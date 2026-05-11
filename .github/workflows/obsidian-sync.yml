@@ -1,0 +1,71 @@
+name: Sync docs → Obsidian
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "CLAUDE.md"
+
+jobs:
+  sync:
+    name: Push docs to Obsidian repo
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync files to TatkovDmitriy/Obsidian
+        env:
+          OBSIDIAN_SYNC_TOKEN: ${{ secrets.OBSIDIAN_SYNC_TOKEN }}
+          REPO: TatkovDmitriy/Obsidian
+          TARGET_DIR: 10_Projects/Pet_Projects/Lemana_Zoom_Agent
+        run: |
+          set -euo pipefail
+
+          API="https://api.github.com/repos/${REPO}/contents"
+          AUTH="Authorization: Bearer ${OBSIDIAN_SYNC_TOKEN}"
+
+          push_file() {
+            local src="$1"
+            local dest="${TARGET_DIR}/$2"
+            local content
+            content=$(base64 -w 0 < "$src")
+
+            # Get current SHA if file exists (needed for update)
+            sha=$(curl -sf -H "$AUTH" "${API}/${dest}" 2>/dev/null \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('sha',''))" \
+              2>/dev/null || true)
+
+            if [ -n "$sha" ]; then
+              payload=$(python3 -c "import json; print(json.dumps({'message':'chore: sync docs from Lemana_zoom_agent','content':'${content}','sha':'${sha}'}))")
+            else
+              payload=$(python3 -c "import json; print(json.dumps({'message':'chore: sync docs from Lemana_zoom_agent','content':'${content}'}))")
+            fi
+
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+              -d "$payload" "${API}/${dest}")
+
+            if [[ "$http_code" == "200" || "$http_code" == "201" ]]; then
+              echo "✓ ${dest}"
+            else
+              echo "✗ ${dest} (HTTP ${http_code})" >&2
+              exit 1
+            fi
+          }
+
+          push_file "CLAUDE.md"               "CLAUDE.md"
+          push_file "docs/backlog.md"         "backlog.md"
+          push_file "docs/architecture.md"    "architecture.md"
+
+          for f in docs/adr/*.md; do
+            [ -f "$f" ] || continue
+            push_file "$f" "adr/$(basename "$f")"
+          done
+
+          for f in docs/tasks/*.md; do
+            [ -f "$f" ] || continue
+            push_file "$f" "tasks/$(basename "$f")"
+          done
