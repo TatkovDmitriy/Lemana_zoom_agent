@@ -113,7 +113,7 @@ export function renderTelegramMessage(
     lines.push('');
     lines.push('✅ *Решения:*');
     output.decisions.slice(0, 3).forEach((d) => lines.push(`• ${escapeMarkdown(d)}`));
-    if (output.decisions.length > 3) lines.push(`_...и ещё ${output.decisions.length - 3}_`);
+    if (output.decisions.length > 3) lines.push(`_${escapeMarkdown(`...и ещё ${output.decisions.length - 3}`)}_`);
   }
 
   if (output.actionItems.length > 0) {
@@ -123,7 +123,7 @@ export function renderTelegramMessage(
       const owner = a.owner ? ` — ${escapeMarkdown(a.owner)}` : '';
       lines.push(`• ${escapeMarkdown(a.text)}${owner}`);
     });
-    if (output.actionItems.length > 3) lines.push(`_...и ещё ${output.actionItems.length - 3}_`);
+    if (output.actionItems.length > 3) lines.push(`_${escapeMarkdown(`...и ещё ${output.actionItems.length - 3}`)}_`);
   }
 
   return lines.join('\n');
