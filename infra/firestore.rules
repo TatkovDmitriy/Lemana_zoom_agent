@@ -33,9 +33,13 @@ service cloud.firestore {
       allow update, delete: if isAuth() && isOwner(resource);
     }
 
-    // ── Backend-only collections (Admin SDK only — no client access) ──
+    // ── Jobs ──────────────────────────────────────────────────────
+    // Client can subscribe (read) to its own jobs to render the bot status
+    // panel on /join. All writes still go through the Admin SDK (the bot,
+    // the watcher, and /api/bot/* routes) so client-side write is denied.
     match /jobs/{jobId} {
-      allow read, write: if false;
+      allow read: if isAuth() && resource.data.payload.ownerId == request.auth.uid;
+      allow write: if false;
     }
     match /zoom_tokens/{docId} {
       allow read, write: if false;
