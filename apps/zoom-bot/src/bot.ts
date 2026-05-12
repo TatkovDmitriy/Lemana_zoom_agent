@@ -4,6 +4,7 @@ import type { Page, ConsoleMessage, Response } from 'playwright';
 import { config } from './config.js';
 import { parseZoomUrl } from './zoom/url.js';
 import { startAudioCapture } from './audio.js';
+import { getDb } from './firestore/client.js';
 
 export type BotResult = {
   audioFile: string;
@@ -19,6 +20,36 @@ export type JoinOptions = {
 };
 
 const MOCK_TRANSCRIPT_MARKER = '__MOCK_AUDIO__';
+const STOP_POLL_INTERVAL_MS = 10_000;
+const MOCK_MEETING_DURATION_MS = 60_000;
+
+// Resolves with 'stopped' as soon as `stopRequestedAt` is set on the job
+// document by POST /api/bot/jobs/:jobId/stop. AbortSignal lets the caller
+// cancel the polling loop when another branch of the Promise.race wins
+// (e.g. real meeting end detected first).
+function pollForStop(jobId: string, signal: AbortSignal): Promise<'stopped'> {
+  return new Promise<'stopped'>((resolve) => {
+    let timer: NodeJS.Timeout | null = null;
+    const tick = async () => {
+      if (signal.aborted) return;
+      try {
+        const doc = await getDb().collection('jobs').doc(jobId).get();
+        if (doc.exists && doc.data()?.['stopRequestedAt']) {
+          console.log(`[bot] stop requested for job ${jobId}`);
+          resolve('stopped');
+          return;
+        }
+      } catch (err) {
+        console.warn('[bot] stop-poll read failed:', err);
+      }
+      if (!signal.aborted) timer = setTimeout(tick, STOP_POLL_INTERVAL_MS);
+    };
+    timer = setTimeout(tick, STOP_POLL_INTERVAL_MS);
+    signal.addEventListener('abort', () => {
+      if (timer) clearTimeout(timer);
+    });
+  });
+}
 
 export async function runBot({ meetingUrl, password, jobId }: JoinOptions): Promise<BotResult> {
   const { meetingId } = parseZoomUrl(meetingUrl);
@@ -26,16 +57,36 @@ export async function runBot({ meetingUrl, password, jobId }: JoinOptions): Prom
   const startedAt = new Date().toISOString();
 
   if (config.BOT_MODE === 'mock') {
-    return runMock({ audioFile, startedAt });
+    return runMock({ jobId, audioFile, startedAt });
   }
 
-  return runReal({ meetingUrl, password, meetingId, audioFile, startedAt });
+  return runReal({ meetingUrl, password, meetingId, audioFile, startedAt, jobId });
 }
 
-async function runMock({ audioFile, startedAt }: { audioFile: string; startedAt: string }): Promise<BotResult> {
-  console.log('[bot] BOT_MODE=mock — simulating 5s meeting');
+async function runMock({
+  jobId,
+  audioFile,
+  startedAt,
+}: {
+  jobId: string;
+  audioFile: string;
+  startedAt: string;
+}): Promise<BotResult> {
+  console.log(
+    `[bot] BOT_MODE=mock — simulating up to ${MOCK_MEETING_DURATION_MS / 1000}s meeting (or until /stop)`,
+  );
   await writeFile(audioFile, MOCK_TRANSCRIPT_MARKER);
-  await new Promise((r) => setTimeout(r, 5_000));
+
+  const stopController = new AbortController();
+  const stopPromise = pollForStop(jobId, stopController.signal);
+  const timerPromise = new Promise<'timer'>((resolve) =>
+    setTimeout(() => resolve('timer'), MOCK_MEETING_DURATION_MS),
+  );
+
+  const reason = await Promise.race([stopPromise, timerPromise]);
+  stopController.abort();
+  console.log(`[bot] mock meeting ended: reason=${reason}`);
+
   const endedAt = new Date().toISOString();
   return { audioFile, startedAt, endedAt, durationMin: 1 };
 }
@@ -102,12 +153,14 @@ async function runReal({
   meetingId,
   audioFile,
   startedAt,
+  jobId,
 }: {
   meetingUrl: string;
   password?: string;
   meetingId: string;
   audioFile: string;
   startedAt: string;
+  jobId: string;
 }): Promise<BotResult> {
   const timeoutMs = config.MEETING_TIMEOUT_MIN * 60 * 1000;
 
@@ -298,8 +351,12 @@ async function runReal({
       }
     }, 60_000);
 
-    try {
-      await page.waitForSelector(
+    // Wait for ANY of: host hangs up the meeting, MEETING_TIMEOUT_MIN
+    // hits, or a /stop signal lands on the job document.
+    const stopController = new AbortController();
+    const stopPromise = pollForStop(jobId, stopController.signal);
+    const endedPromise = page
+      .waitForSelector(
         [
           'text=This meeting has been ended',
           'text=The meeting has been ended',
@@ -308,11 +365,13 @@ async function runReal({
           'text=Хост завершил конференцию',
         ].join(', '),
         { timeout: timeoutMs },
-      );
-      console.log('[bot] meeting ended by host');
-    } catch {
-      console.log('[bot] meeting timeout reached');
-    }
+      )
+      .then(() => 'ended' as const)
+      .catch(() => 'timeout' as const);
+
+    const reason = await Promise.race([stopPromise, endedPromise]);
+    stopController.abort();
+    console.log(`[bot] meeting wait done: reason=${reason}`);
 
     clearInterval(pollInterval);
     await capture.stop();
