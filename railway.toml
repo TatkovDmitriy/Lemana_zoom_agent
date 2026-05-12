@@ -1,6 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "apps/bot/Dockerfile"
+dockerfilePath = "apps/watcher/Dockerfile"
 
 [deploy]
 restartPolicyType = "ON_FAILURE"
