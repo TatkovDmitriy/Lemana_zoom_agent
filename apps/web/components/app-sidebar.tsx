@@ -4,8 +4,9 @@ import NextLink from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Bot, FolderKanban, Inbox, LogOut, Sparkles } from 'lucide-react';
 import { signOut } from 'firebase/auth';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { getClientAuth } from '@/lib/firebase-client';
+import { getClientAuth, getClientDb } from '@/lib/firebase-client';
 import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 
@@ -14,17 +15,28 @@ export function AppSidebar() {
   const auth = useAuth();
   const [inboxCount, setInboxCount] = useState<number>(0);
 
+  // Live count of minutes with projectId === null. Subscribing (rather than
+  // polling /api/minutes/inbox-count once on mount) ensures the badge reacts
+  // to PATCH /api/minutes/[id]/move and to new minutes landing in /inbox
+  // without a page refresh.
+  const uid = auth.status === 'authenticated' ? auth.user.uid : null;
   useEffect(() => {
-    if (auth.status !== 'authenticated') return;
-    let cancelled = false;
-    fetch('/api/minutes/inbox-count', {
-      headers: { Authorization: `Bearer ${auth.token}` },
-    })
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled) setInboxCount(d.count ?? 0); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [auth]);
+    if (!uid) {
+      setInboxCount(0);
+      return;
+    }
+    const q = query(
+      collection(getClientDb(), 'minutes'),
+      where('ownerId', '==', uid),
+      where('projectId', '==', null),
+    );
+    const unsub = onSnapshot(
+      q,
+      (snap) => setInboxCount(snap.size),
+      (err) => console.warn('[sidebar] inbox-count snapshot error', err),
+    );
+    return () => unsub();
+  }, [uid]);
 
   async function handleSignOut() {
     await signOut(getClientAuth());
