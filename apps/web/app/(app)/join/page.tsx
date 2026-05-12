@@ -12,7 +12,6 @@ import {
   Loader2,
   Sparkles,
   Square,
-  Video,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
@@ -161,7 +160,6 @@ export default function JoinMeetingPage() {
     return (
       <BotStatusPanel
         job={job}
-        jobId={jobId}
         stopping={stopping}
         onStop={handleStop}
         onReset={handleReset}
@@ -256,13 +254,11 @@ function ProcessingTimer({
 
 function BotStatusPanel({
   job,
-  jobId,
   stopping,
   onStop,
   onReset,
 }: {
   job: JobDoc | null;
-  jobId: string;
   stopping: boolean;
   onStop: () => void;
   onReset: () => void;
