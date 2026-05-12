@@ -97,7 +97,9 @@ async function dumpPageState(page: Page, step: string): Promise<void> {
     const title = await page.title().catch(() => '(error)');
     console.log(`[bot:diag] [${step}] url=${url} title="${title}"`);
     const screenshotPath = `/tmp/bot-${step.replace(/\s+/g, '-')}-${Date.now()}.png`;
-    await page.screenshot({ path: screenshotPath, fullPage: false }).catch((e: Error) => {
+    // Zoom loads heavy WASM that blocks font-loading; cap at 5s so diagnostic
+    // steps don't stall the join flow for 30s each.
+    await page.screenshot({ path: screenshotPath, fullPage: false, timeout: 5_000 }).catch((e: Error) => {
       console.log(`[bot:diag] screenshot failed: ${e.message}`);
     });
     console.log(`[bot:diag] screenshot saved → ${screenshotPath}`);
@@ -329,9 +331,6 @@ async function runReal({
 
     console.log('[bot] joined meeting, starting audio capture');
     const capture = await startAudioCapture(audioFile);
-
-    // Bot is confirmed inside the meeting with audio running — notify pipeline
-    // so heartbeat flips to inMeeting=true and the UI status panel updates.
     onJoined?.();
 
     const pollInterval = setInterval(() => {
