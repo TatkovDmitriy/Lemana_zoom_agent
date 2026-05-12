@@ -4,6 +4,7 @@ import type { Page, ConsoleMessage, Response } from 'playwright';
 import { config } from './config.js';
 import { parseZoomUrl } from './zoom/url.js';
 import { startAudioCapture } from './audio.js';
+import { getDb } from './firestore/client.js';
 
 export type BotResult = {
   audioFile: string;
@@ -16,44 +17,90 @@ export type JoinOptions = {
   meetingUrl: string;
   password?: string;
   jobId: string;
+  onJoined?: () => void;
 };
 
 const MOCK_TRANSCRIPT_MARKER = '__MOCK_AUDIO__';
+const STOP_POLL_INTERVAL_MS = 10_000;
+const MOCK_MEETING_DURATION_MS = 60_000;
 
-export async function runBot({ meetingUrl, password, jobId }: JoinOptions): Promise<BotResult> {
+function pollForStop(jobId: string, signal: AbortSignal): Promise<'stopped'> {
+  return new Promise<'stopped'>((resolve) => {
+    let timer: NodeJS.Timeout | null = null;
+    const tick = async () => {
+      if (signal.aborted) return;
+      try {
+        const doc = await getDb().collection('jobs').doc(jobId).get();
+        if (doc.exists && doc.data()?.['stopRequestedAt']) {
+          console.log(`[bot] stop requested for job ${jobId}`);
+          resolve('stopped');
+          return;
+        }
+      } catch (err) {
+        console.warn('[bot] stop-poll read failed:', err);
+      }
+      if (!signal.aborted) timer = setTimeout(tick, STOP_POLL_INTERVAL_MS);
+    };
+    timer = setTimeout(tick, STOP_POLL_INTERVAL_MS);
+    signal.addEventListener('abort', () => {
+      if (timer) clearTimeout(timer);
+    });
+  });
+}
+
+export async function runBot({ meetingUrl, password, jobId, onJoined }: JoinOptions): Promise<BotResult> {
   const { meetingId } = parseZoomUrl(meetingUrl);
   const audioFile = `/tmp/zoom-bot-${jobId}-${meetingId}.mp3`;
   const startedAt = new Date().toISOString();
 
   if (config.BOT_MODE === 'mock') {
-    return runMock({ audioFile, startedAt });
+    return runMock({ jobId, audioFile, startedAt, onJoined });
   }
 
-  return runReal({ meetingUrl, password, meetingId, audioFile, startedAt });
+  return runReal({ meetingUrl, password, meetingId, audioFile, startedAt, jobId, onJoined });
 }
 
-async function runMock({ audioFile, startedAt }: { audioFile: string; startedAt: string }): Promise<BotResult> {
-  console.log('[bot] BOT_MODE=mock — simulating 5s meeting');
+async function runMock({
+  jobId,
+  audioFile,
+  startedAt,
+  onJoined,
+}: {
+  jobId: string;
+  audioFile: string;
+  startedAt: string;
+  onJoined?: () => void;
+}): Promise<BotResult> {
+  console.log(
+    `[bot] BOT_MODE=mock — simulating up to ${MOCK_MEETING_DURATION_MS / 1000}s meeting (or until /stop)`,
+  );
   await writeFile(audioFile, MOCK_TRANSCRIPT_MARKER);
-  await new Promise((r) => setTimeout(r, 5_000));
+  onJoined?.();
+
+  const stopController = new AbortController();
+  const stopPromise = pollForStop(jobId, stopController.signal);
+  const timerPromise = new Promise<'timer'>((resolve) =>
+    setTimeout(() => resolve('timer'), MOCK_MEETING_DURATION_MS),
+  );
+
+  const reason = await Promise.race([stopPromise, timerPromise]);
+  stopController.abort();
+  console.log(`[bot] mock meeting ended: reason=${reason}`);
+
   const endedAt = new Date().toISOString();
   return { audioFile, startedAt, endedAt, durationMin: 1 };
 }
-
-// ── diagnostic helpers ─────────────────────────────────────────────────────────────────
 
 async function dumpPageState(page: Page, step: string): Promise<void> {
   try {
     const url = page.url();
     const title = await page.title().catch(() => '(error)');
     console.log(`[bot:diag] [${step}] url=${url} title="${title}"`);
-
     const screenshotPath = `/tmp/bot-${step.replace(/\s+/g, '-')}-${Date.now()}.png`;
     await page.screenshot({ path: screenshotPath, fullPage: false }).catch((e: Error) => {
       console.log(`[bot:diag] screenshot failed: ${e.message}`);
     });
     console.log(`[bot:diag] screenshot saved → ${screenshotPath}`);
-
     const bodyText = await page.locator('body').innerText({ timeout: 3_000 }).catch(() => '(innerText error)');
     console.log(`[bot:diag] body text: ${bodyText.replace(/\n+/g, ' ').trim().slice(0, 500)}`);
   } catch (e) {
@@ -95,19 +142,21 @@ async function logAllInputs(page: Page): Promise<void> {
   }
 }
 
-// ── real mode ───────────────────────────────────────────────────────────────────────────────
-
 async function runReal({
   password,
   meetingId,
   audioFile,
   startedAt,
+  jobId,
+  onJoined,
 }: {
   meetingUrl: string;
   password?: string;
   meetingId: string;
   audioFile: string;
   startedAt: string;
+  jobId: string;
+  onJoined?: () => void;
 }): Promise<BotResult> {
   const timeoutMs = config.MEETING_TIMEOUT_MIN * 60 * 1000;
 
@@ -158,7 +207,6 @@ async function runReal({
     const currentUrl = page.url();
     if (!currentUrl.includes('/wc/')) {
       console.log(`[bot:warn] redirected away from /wc/ — got: ${currentUrl}`);
-      console.log('[bot:warn] retrying with explicit web-client params');
       await page.goto(
         `https://zoom.us/wc/${meetingId}/join?prefer_webinar=true&web=1`,
         { waitUntil: 'domcontentloaded', timeout: 30_000 },
@@ -229,7 +277,6 @@ async function runReal({
       )
       .first();
 
-    // force:true bypasses the preview-meeting-info overlay that intercepts pointer events
     const joinClicked = await joinLocator
       .click({ force: true, timeout: 10_000 })
       .then(() => true)
@@ -241,7 +288,6 @@ async function runReal({
 
     await dumpPageState(page, '07-after-join-click');
 
-    // Preview screen may have a second Join / Join Meeting button
     const joinAgainClicked = await page
       .locator('button:has-text("Join"), button:has-text("Join Meeting"), button:has-text("Присоединиться")')
       .first()
@@ -252,13 +298,7 @@ async function runReal({
 
     await dumpPageState(page, '08-after-preview-join');
 
-    // Zoom Web Client is a SPA — URL stays on /join even after joining.
-    // Instead, wait for the page title to change from the pre-join value,
-    // which happens once the meeting room loads.
     console.log('[bot] waiting for meeting room to load (title change)');
-    // Poll page.title() via Playwright API — avoids needing DOM types in the
-    // Node-side tsconfig (lib: ES2022, no 'dom'). page.waitForFunction would
-    // run in browser context but TS can't tell, so 'document' wouldn't resolve.
     const titleDeadline = Date.now() + 30_000;
     let inMeeting = false;
     let finalTitle = '';
@@ -290,6 +330,10 @@ async function runReal({
     console.log('[bot] joined meeting, starting audio capture');
     const capture = await startAudioCapture(audioFile);
 
+    // Bot is confirmed inside the meeting with audio running — notify pipeline
+    // so heartbeat flips to inMeeting=true and the UI status panel updates.
+    onJoined?.();
+
     const pollInterval = setInterval(() => {
       try {
         console.log(`[bot:poll] still running, url=${page.url()}`);
@@ -298,8 +342,10 @@ async function runReal({
       }
     }, 60_000);
 
-    try {
-      await page.waitForSelector(
+    const stopController = new AbortController();
+    const stopPromise = pollForStop(jobId, stopController.signal);
+    const endedPromise = page
+      .waitForSelector(
         [
           'text=This meeting has been ended',
           'text=The meeting has been ended',
@@ -308,11 +354,13 @@ async function runReal({
           'text=Хост завершил конференцию',
         ].join(', '),
         { timeout: timeoutMs },
-      );
-      console.log('[bot] meeting ended by host');
-    } catch {
-      console.log('[bot] meeting timeout reached');
-    }
+      )
+      .then(() => 'ended' as const)
+      .catch(() => 'timeout' as const);
+
+    const reason = await Promise.race([stopPromise, endedPromise]);
+    stopController.abort();
+    console.log(`[bot] meeting wait done: reason=${reason}`);
 
     clearInterval(pollInterval);
     await capture.stop();

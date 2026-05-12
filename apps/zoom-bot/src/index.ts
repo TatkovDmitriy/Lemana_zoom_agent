@@ -47,8 +47,6 @@ async function main() {
   await app.listen({ port: config.PORT, host: '0.0.0.0' });
   console.log(`[zoom-bot] HTTP listening on :${config.PORT}`);
 
-  // Listener runs in both modes — runBot() branches on BOT_MODE internally.
-  // Skipping it in mock mode broke LZA-QA-006 end-to-end testing.
   const unsubscribe = startJobListener();
 
   process.on('SIGTERM', async () => {
