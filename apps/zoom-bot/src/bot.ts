@@ -17,6 +17,7 @@ export type JoinOptions = {
   meetingUrl: string;
   password?: string;
   jobId: string;
+  onJoined?: () => void;
 };
 
 const MOCK_TRANSCRIPT_MARKER = '__MOCK_AUDIO__';
@@ -51,31 +52,36 @@ function pollForStop(jobId: string, signal: AbortSignal): Promise<'stopped'> {
   });
 }
 
-export async function runBot({ meetingUrl, password, jobId }: JoinOptions): Promise<BotResult> {
+export async function runBot({ meetingUrl, password, jobId, onJoined }: JoinOptions): Promise<BotResult> {
   const { meetingId } = parseZoomUrl(meetingUrl);
   const audioFile = `/tmp/zoom-bot-${jobId}-${meetingId}.mp3`;
   const startedAt = new Date().toISOString();
 
   if (config.BOT_MODE === 'mock') {
-    return runMock({ jobId, audioFile, startedAt });
+    return runMock({ jobId, audioFile, startedAt, onJoined });
   }
 
-  return runReal({ meetingUrl, password, meetingId, audioFile, startedAt, jobId });
+  return runReal({ meetingUrl, password, meetingId, audioFile, startedAt, jobId, onJoined });
 }
 
 async function runMock({
   jobId,
   audioFile,
   startedAt,
+  onJoined,
 }: {
   jobId: string;
   audioFile: string;
   startedAt: string;
+  onJoined?: () => void;
 }): Promise<BotResult> {
   console.log(
     `[bot] BOT_MODE=mock — simulating up to ${MOCK_MEETING_DURATION_MS / 1000}s meeting (or until /stop)`,
   );
   await writeFile(audioFile, MOCK_TRANSCRIPT_MARKER);
+
+  // Simulate the bot having joined.
+  onJoined?.();
 
   const stopController = new AbortController();
   const stopPromise = pollForStop(jobId, stopController.signal);
@@ -154,6 +160,7 @@ async function runReal({
   audioFile,
   startedAt,
   jobId,
+  onJoined,
 }: {
   meetingUrl: string;
   password?: string;
@@ -161,6 +168,7 @@ async function runReal({
   audioFile: string;
   startedAt: string;
   jobId: string;
+  onJoined?: () => void;
 }): Promise<BotResult> {
   const timeoutMs = config.MEETING_TIMEOUT_MIN * 60 * 1000;
 
@@ -305,13 +313,7 @@ async function runReal({
 
     await dumpPageState(page, '08-after-preview-join');
 
-    // Zoom Web Client is a SPA — URL stays on /join even after joining.
-    // Instead, wait for the page title to change from the pre-join value,
-    // which happens once the meeting room loads.
     console.log('[bot] waiting for meeting room to load (title change)');
-    // Poll page.title() via Playwright API — avoids needing DOM types in the
-    // Node-side tsconfig (lib: ES2022, no 'dom'). page.waitForFunction would
-    // run in browser context but TS can't tell, so 'document' wouldn't resolve.
     const titleDeadline = Date.now() + 30_000;
     let inMeeting = false;
     let finalTitle = '';
@@ -342,6 +344,10 @@ async function runReal({
 
     console.log('[bot] joined meeting, starting audio capture');
     const capture = await startAudioCapture(audioFile);
+
+    // Bot is confirmed inside the meeting with audio running — notify pipeline
+    // so the heartbeat flips to inMeeting=true and the UI status panel updates.
+    onJoined?.();
 
     const pollInterval = setInterval(() => {
       try {

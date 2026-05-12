@@ -23,25 +23,38 @@ export async function processJoinMeeting(
   console.log(`[zoom-bot] picking up join job ${jobId} → ${payload.meetingUrl}`);
   const startMs = Date.now();
 
+  // Initial heartbeat: bot is connecting, not yet inside the meeting.
+  // The UI will show "Бот подключается..." until onJoined flips inMeeting=true.
   await getDb()
     .collection('jobs')
     .doc(jobId)
     .update({
       status: 'in_progress',
-      heartbeat: buildHeartbeat(startMs, true, true),
+      heartbeat: buildHeartbeat(startMs, false, false),
       updatedAt: Timestamp.now(),
     });
 
-  // Push a fresh heartbeat every HEARTBEAT_INTERVAL_MS while the bot is in
-  // the meeting. The web /join status panel subscribes to this doc via
-  // onSnapshot and uses the heartbeat to render the live status rows.
-  const heartbeatTimer = setInterval(() => {
+  // Periodic heartbeat while recording. Starts after onJoined fires so the
+  // first tick reflects the real joined state.
+  let heartbeatTimer: NodeJS.Timeout | null = null;
+
+  // Called by runBot() the moment the browser confirms it's inside the meeting
+  // and audio capture has started. Flips UI from "connecting" to "recording".
+  const onJoined = () => {
     void getDb()
       .collection('jobs')
       .doc(jobId)
-      .update({ heartbeat: buildHeartbeat(startMs, true, true) })
-      .catch((err: unknown) => console.warn('[zoom-bot] heartbeat update failed:', err));
-  }, HEARTBEAT_INTERVAL_MS);
+      .update({ heartbeat: buildHeartbeat(startMs, true, true), updatedAt: Timestamp.now() })
+      .catch((err: unknown) => console.warn('[zoom-bot] onJoined update failed:', err));
+
+    heartbeatTimer = setInterval(() => {
+      void getDb()
+        .collection('jobs')
+        .doc(jobId)
+        .update({ heartbeat: buildHeartbeat(startMs, true, true) })
+        .catch((err: unknown) => console.warn('[zoom-bot] heartbeat update failed:', err));
+    }, HEARTBEAT_INTERVAL_MS);
+  };
 
   try {
     const { meetingId } = parseZoomUrl(payload.meetingUrl);
@@ -50,13 +63,12 @@ export async function processJoinMeeting(
       meetingUrl: payload.meetingUrl,
       password: payload.password,
       jobId,
+      onJoined,
     });
 
-    clearInterval(heartbeatTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
 
-    // Meeting wait finished (host hang-up, timeout, or stop signal). Mark
-    // inMeeting=false so the UI flips into the "Обработка…" state while we
-    // transcribe + summarize.
+    // Meeting ended. Mark inMeeting=false so the UI shows "Обработка…".
     await getDb()
       .collection('jobs')
       .doc(jobId)
@@ -102,7 +114,7 @@ export async function processJoinMeeting(
 
     console.log(`[zoom-bot] join job ${jobId} done; spawned process_recording job ${ref.id}`);
   } catch (err) {
-    clearInterval(heartbeatTimer);
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
     const error = err instanceof Error ? err.message : String(err);
     console.error(`[zoom-bot] join job ${jobId} failed:`, error);
     await getDb()
