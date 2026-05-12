@@ -179,8 +179,16 @@ async function runReal({
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
+      // Auto-accept getUserMedia permission prompts.
       '--use-fake-ui-for-media-stream',
-      '--use-fake-device-for-media-stream',
+      // LZA-BUG-005: do NOT pass --use-fake-device-for-media-stream — it
+      // makes Chromium expose a synthetic green test pattern as the camera,
+      // and Zoom intermittently broadcasts it (~1 in 3 meetings, depending
+      // on whether the preview screen's "start video" toggle was on).
+      // Without the flag getUserMedia({video:true}) throws NotFoundError,
+      // Zoom joins without video, the avatar tile is shown instead.
+      // The mic still works: Chromium falls back to the PulseAudio default
+      // source (virt_sink.monitor) configured in entrypoint.sh.
       '--disable-web-security',
       '--allow-running-insecure-content',
     ],
