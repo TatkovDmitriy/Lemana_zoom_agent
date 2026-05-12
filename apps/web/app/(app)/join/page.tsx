@@ -37,7 +37,10 @@ type JobDoc = {
   heartbeat?: Heartbeat;
   stopRequestedAt?: Timestamp | null;
   processJobId?: string;
+  updatedAt?: Timestamp;
 };
+
+const ACTIVE_JOB_STORAGE_KEY = 'activeJobId';
 
 export default function JoinMeetingPage() {
   const auth = useAuth();
@@ -56,14 +59,37 @@ export default function JoinMeetingPage() {
     if (auth.status === 'unauthenticated') router.replace('/sign-in');
   }, [auth.status, router]);
 
+  // Restore an active job from sessionStorage on mount so the status panel
+  // survives navigation (LZA-034 bug 1). sessionStorage is per-tab, so a
+  // brand-new tab won't accidentally hijack a job from another tab.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = sessionStorage.getItem(ACTIVE_JOB_STORAGE_KEY);
+    if (saved) setJobId(saved);
+  }, []);
+
   useEffect(() => {
     if (!jobId || auth.status !== 'authenticated') return;
     const ref = doc(getClientDb(), 'jobs', jobId);
     const unsub = onSnapshot(
       ref,
-      (snap) => setJob((snap.data() as JobDoc | undefined) ?? null),
+      (snap) => {
+        const data = (snap.data() as JobDoc | undefined) ?? null;
+        setJob(data);
+        // Terminal states: drop the sessionStorage handle so the next visit
+        // shows the form, not a stale done/failed panel.
+        if (data?.status === 'done' || data?.status === 'failed') {
+          sessionStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+        }
+      },
       (err) => {
         console.warn('[join] onSnapshot error', err);
+        // If the current user doesn't own this job (cross-user session),
+        // clear the stale jobId so the form renders instead of a frozen skeleton.
+        if ((err as { code?: string }).code === 'permission-denied') {
+          sessionStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
+          setJobId(null);
+        }
         toast.error(
           'Не удалось подписаться на статус (проверьте firestore.rules для jobs)',
         );
@@ -97,6 +123,7 @@ export default function JoinMeetingPage() {
       if (!res.ok || !data.jobId) {
         throw new Error(data.error?.formErrors?.[0] ?? 'Не удалось отправить бота');
       }
+      sessionStorage.setItem(ACTIVE_JOB_STORAGE_KEY, data.jobId);
       setJobId(data.jobId);
       setJob({ status: 'pending' });
       toast.success('Бот отправлен на встречу');
@@ -128,6 +155,7 @@ export default function JoinMeetingPage() {
   }
 
   function handleReset() {
+    sessionStorage.removeItem(ACTIVE_JOB_STORAGE_KEY);
     setJobId(null);
     setJob(null);
     setMeetingUrl('');
@@ -216,7 +244,7 @@ export default function JoinMeetingPage() {
       <div className="mt-6 flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-4">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Бот участвует во встрече как обычный участник под именем «Lemana AI». После
+          Бот участвует во встрече как обычный участник под именем «Лемана AI». После
           окончания встречи аудио транскрибируется через Whisper, текст уходит в Claude
           и минутка появляется в каталоге. Если что-то пошло не так — задача отметится
           как <code className="rounded bg-muted px-1 py-0.5">failed</code> в Firestore.
@@ -301,6 +329,12 @@ function StatusPanel({
             failed={isFailed}
             label={isFailed ? 'Ошибка' : 'Обработка'}
           />
+          {isProcessing && (
+            <ProcessingTimer
+              startedAt={job?.updatedAt}
+              meetingMin={hb?.durationMin ?? 0}
+            />
+          )}
         </div>
       )}
 
@@ -356,6 +390,55 @@ function StatusPanel({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Processing timer ────────────────────────────────────────────────────────────────────
+//
+// Shown under the "Обработка" status row when the bot has left the meeting
+// (heartbeat.inMeeting === false) and the watcher is transcribing /
+// summarising. Ticks every second; the hint uses the actual meeting length
+// to give the user a realistic ETA. faster-whisper large-v3 on CPU at int8
+// runs roughly 0.1–0.3× realtime, so a 30-min call ⇒ ~3–9 min processing.
+
+function ProcessingTimer({
+  startedAt,
+  meetingMin,
+}: {
+  startedAt?: Timestamp;
+  meetingMin: number;
+}) {
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  useEffect(() => {
+    if (!startedAt) return;
+    const startMs = startedAt.toMillis();
+    const tick = () =>
+      setElapsedSec(Math.max(0, Math.floor((Date.now() - startMs) / 1000)));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startedAt]);
+
+  const mins = Math.floor(elapsedSec / 60);
+  const secs = elapsedSec % 60;
+  const elapsedStr =
+    mins > 0 ? `${mins} мин ${String(secs).padStart(2, '0')} с` : `${secs} с`;
+
+  const low = Math.max(1, Math.round(meetingMin * 0.1));
+  const high = Math.max(low + 1, Math.round(meetingMin * 0.3));
+  const hint =
+    meetingMin > 0
+      ? `Транскрибируем запись ~${meetingMin} мин — обычно занимает ${low}–${high} мин`
+      : 'Транскрибируем запись — обычно занимает 1–3 мин';
+
+  return (
+    <div className="ml-6 space-y-0.5 pl-1">
+      <p className="text-xs tabular-nums text-muted-foreground">
+        Идёт обработка: {elapsedStr}
+      </p>
+      <p className="text-xs text-muted-foreground/80">{hint}</p>
     </div>
   );
 }
