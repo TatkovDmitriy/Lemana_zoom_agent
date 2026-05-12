@@ -72,6 +72,17 @@ export const UpdateMinuteSchema = z.object({
   projectId: z.string().optional(),
 });
 
+// Inline-editing of minute content sections (LZA-033). Each list field is
+// optional; when present it fully replaces the existing array. Empty arrays
+// are allowed so the user can clear a section.
+export const PatchMinuteSchema = z.object({
+  summary: z.string().min(1).max(5000).optional(),
+  decisions: z.array(z.string().min(1).max(500)).max(50).optional(),
+  actionItems: z.array(ActionItemSchema).max(50).optional(),
+  openQuestions: z.array(z.string().min(1).max(500)).max(50).optional(),
+  nextSteps: z.array(z.string().min(1).max(500)).max(50).optional(),
+});
+
 export const JoinMeetingSchema = z.object({
   meetingUrl: z
     .string()
